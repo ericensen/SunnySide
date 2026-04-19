@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SunnySide Summer Camp</title>
+  <meta
+    name="description"
+    content="SunnySide Summer Camp offers bright, playful summer camp days for kids in Summer 2026."
+  >
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap"
+    rel="stylesheet"
+  >
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="index.html">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>
+          <strong>SunnySide</strong>
+          <small>Summer Camp</small>
+        </span>
+      </a>
+      <nav class="site-nav">
+        <a href="#lineup">Camp Lineup</a>
+        <a href="#how-it-works">How It Works</a>
+        <a class="button button-secondary" href="checkout.html">Enroll Now</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Summer 2026</p>
+          <h1>The bright spot of summer starts here.</h1>
+          <p class="hero-text">
+            SunnySide Summer Camp turns one-day camp sessions into hands-on science,
+            messy masterpieces, kitchen fun, splashy play, wizarding wonder, and
+            carnival-style joy.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#lineup">Explore Camps</a>
+            <a class="button button-secondary" href="checkout.html">Start Checkout</a>
+          </div>
+          <div class="hero-pills">
+            <span>7 themed camp days</span>
+            <span>$30 per kid</span>
+            <span>20 spots max per camp</span>
+          </div>
+        </div>
+
+        <div class="hero-visual">
+          <div class="sunburst"></div>
+          <div class="hero-stack">
+            <article class="hero-mini-card tilt-left">
+              <p>Science bubbles</p>
+              <strong>Build it. Test it. Wow.</strong>
+            </article>
+            <article class="hero-mini-card tilt-right">
+              <p>Water day laughs</p>
+              <strong>Cool down with splashy games.</strong>
+            </article>
+            <article class="hero-mini-card tilt-left">
+              <p>Wizarding magic</p>
+              <strong>Potions, quests, and sparkle.</strong>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="lineup">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Camp Lineup</p>
+            <h2>Pick the adventures your kids will talk about all summer.</h2>
+          </div>
+          <a class="button button-secondary" href="checkout.html">One checkout for all camps</a>
+        </div>
+        <div class="camp-grid" data-camp-grid></div>
+      </section>
+
+      <section class="section highlight-section" id="how-it-works">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">How It Works</p>
+            <h2>Simple signup, simple payment, and one waiver flow.</h2>
+          </div>
+        </div>
+        <div class="three-up">
+          <article class="info-card">
+            <span class="info-number">1</span>
+            <h3>Choose your camps</h3>
+            <p>
+              Browse each camp page, then send parents to one shared checkout page
+              that can handle one or multiple camps at once.
+            </p>
+          </article>
+          <article class="info-card">
+            <span class="info-number">2</span>
+            <h3>Add kids and details</h3>
+            <p>
+              Parents can enter child names, contact info, emergency details,
+              allergies or notes, and a typed waiver signature.
+            </p>
+          </article>
+          <article class="info-card">
+            <span class="info-number">3</span>
+            <h3>Send to payment</h3>
+            <p>
+              The checkout page is ready for a Stripe payment link and a lightweight
+              Google Sheets tracker so you can keep registrations organized.
+            </p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>SunnySide Summer Camp</strong>
+        <p>Sunny, creative, screen-light summer fun for Summer 2026.</p>
+      </div>
+      <div class="footer-meta">
+        <a href="checkout.html">Register</a>
+        <a href="SETUP.md">Setup Notes</a>
+      </div>
+    </footer>
+  </div>
+
+  <script src="scripts/site-config.js"></script>
+  <script src="scripts/camp-data.js"></script>
+  <script src="scripts/main.js"></script>
+</body>
+</html>

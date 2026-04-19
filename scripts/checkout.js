@@ -1,0 +1,248 @@
+(function () {
+  const data = window.SUNNYSIDE_DATA;
+  const config = window.SUNNYSIDE_CONFIG || {};
+  const form = document.getElementById("checkout-form");
+
+  if (!form) {
+    return;
+  }
+
+  const campPicker = document.querySelector("[data-camp-picker]");
+  const camperList = document.querySelector("[data-camper-list]");
+  const camperTemplate = document.getElementById("camper-template");
+  const addCamperButton = document.querySelector("[data-add-camper]");
+  const statusBox = document.getElementById("status-box");
+  const summaryFields = {
+    camps: document.querySelector("[data-summary-camps]"),
+    kids: document.querySelector("[data-summary-kids]"),
+    seats: document.querySelector("[data-summary-seats]"),
+    total: document.querySelector("[data-summary-total]"),
+    list: document.querySelector("[data-summary-list]")
+  };
+
+  const params = new URLSearchParams(window.location.search);
+  const preselectedCamp = params.get("camp");
+
+  function getLocalToday() {
+    const today = new Date();
+    const offset = today.getTimezoneOffset() * 60000;
+    return new Date(today.getTime() - offset).toISOString().slice(0, 10);
+  }
+
+  function renderCampPicker() {
+    campPicker.innerHTML = data.camps
+      .map(function (camp) {
+        const checked = camp.slug === preselectedCamp ? "checked" : "";
+
+        return `
+          <label class="camp-option">
+            <input type="checkbox" name="selectedCamp" value="${camp.slug}" ${checked}>
+            <span>
+              <strong>${camp.title}</strong>
+              <small>${camp.shortDate}</small>
+              <p>${camp.blurb}</p>
+            </span>
+          </label>
+        `;
+      })
+      .join("");
+  }
+
+  function addCamperCard() {
+    const fragment = camperTemplate.content.cloneNode(true);
+    camperList.appendChild(fragment);
+    refreshCamperNumbers();
+    updateSummary();
+  }
+
+  function refreshCamperNumbers() {
+    const cards = camperList.querySelectorAll(".camper-card");
+
+    cards.forEach(function (card, index) {
+      const number = card.querySelector("[data-camper-number]");
+      const removeButton = card.querySelector("[data-remove-camper]");
+
+      number.textContent = String(index + 1);
+      removeButton.hidden = cards.length === 1;
+
+      removeButton.onclick = function () {
+        card.remove();
+        refreshCamperNumbers();
+        updateSummary();
+      };
+    });
+  }
+
+  function getSelectedCamps() {
+    return Array.from(form.querySelectorAll('input[name="selectedCamp"]:checked'))
+      .map(function (input) {
+        return data.getCamp(input.value);
+      })
+      .filter(Boolean);
+  }
+
+  function getChildren() {
+    return Array.from(camperList.querySelectorAll(".camper-card")).map(function (card) {
+      return {
+        name: card.querySelector('input[name="childName"]').value.trim(),
+        age: card.querySelector('input[name="childAge"]').value.trim(),
+        notes: card.querySelector('textarea[name="childNotes"]').value.trim()
+      };
+    });
+  }
+
+  function updateSummary() {
+    const camps = getSelectedCamps();
+    const kids = getChildren().filter(function (kid) {
+      return kid.name || kid.age || kid.notes;
+    });
+    const seatCount = camps.length * kids.length;
+    const total = seatCount * data.pricePerKid;
+
+    summaryFields.camps.textContent = String(camps.length);
+    summaryFields.kids.textContent = String(kids.length);
+    summaryFields.seats.textContent = String(seatCount);
+    summaryFields.total.textContent = data.money(total);
+
+    summaryFields.list.innerHTML = camps.length
+      ? camps
+          .map(function (camp) {
+            return `
+              <div class="summary-item">
+                <strong>${camp.title}</strong>
+                <p>${camp.shortDate}</p>
+              </div>
+            `;
+          })
+          .join("")
+      : '<p>Select one or more camps to see your summary here.</p>';
+  }
+
+  function saveLocalRegistration(payload) {
+    const key = "sunnySideRegistrations";
+    const existing = JSON.parse(localStorage.getItem(key) || "[]");
+    existing.push(payload);
+    localStorage.setItem(key, JSON.stringify(existing));
+  }
+
+  function sendToWebhook(payload) {
+    if (!config.registrationWebhook) {
+      return;
+    }
+
+    const body = JSON.stringify(payload);
+
+    if (navigator.sendBeacon) {
+      const blob = new Blob([body], { type: "text/plain;charset=UTF-8" });
+      navigator.sendBeacon(config.registrationWebhook, blob);
+      return;
+    }
+
+    fetch(config.registrationWebhook, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: body
+    }).catch(function () {
+      return undefined;
+    });
+  }
+
+  function showStatus(messageHtml, isSuccess) {
+    statusBox.classList.remove("hidden");
+    statusBox.classList.toggle("success", Boolean(isSuccess));
+    statusBox.classList.toggle("error", !isSuccess);
+    statusBox.innerHTML = messageHtml;
+  }
+
+  form.addEventListener("input", updateSummary);
+
+  addCamperButton.addEventListener("click", function () {
+    addCamperCard();
+  });
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+
+    if (!form.reportValidity()) {
+      return;
+    }
+
+    const selectedCamps = getSelectedCamps();
+    const children = getChildren().filter(function (kid) {
+      return kid.name && kid.age;
+    });
+
+    if (!selectedCamps.length) {
+      showStatus("<strong>Please select at least one camp.</strong>", false);
+      return;
+    }
+
+    if (!children.length) {
+      showStatus("<strong>Please add at least one child with a name and age.</strong>", false);
+      return;
+    }
+
+    const seatCount = selectedCamps.length * children.length;
+    const totalDue = seatCount * data.pricePerKid;
+    const payload = {
+      registrationId: "SSC-" + Date.now(),
+      submittedAt: new Date().toISOString(),
+      parentName: form.parentName.value.trim(),
+      email: form.email.value.trim(),
+      phone: form.phone.value.trim(),
+      emergencyContact: form.emergencyContact.value.trim(),
+      emergencyPhone: form.emergencyPhone.value.trim(),
+      familyNotes: form.familyNotes.value.trim(),
+      waiverAccepted: form.waiverAccepted.checked,
+      signatureName: form.signatureName.value.trim(),
+      signatureDate: form.signatureDate.value,
+      kids: children,
+      camps: selectedCamps.map(function (camp) {
+        return {
+          slug: camp.slug,
+          title: camp.title,
+          shortDate: camp.shortDate
+        };
+      }),
+      seatCount: seatCount,
+      totalDue: totalDue,
+      paymentStatus: "pending"
+    };
+
+    try {
+      saveLocalRegistration(payload);
+    } catch (error) {
+      showStatus(
+        "<strong>Registration details could not be saved in this browser.</strong><p>Please keep this page open and complete payment after you set up your live webhook and payment link.</p>",
+        false
+      );
+      return;
+    }
+
+    sendToWebhook(payload);
+
+    const paymentMarkup = config.stripePaymentLink
+      ? `<p><a class="button button-primary" href="${config.stripePaymentLink}" target="_blank" rel="noreferrer">Open Payment Link</a></p>
+         <p>Set the Stripe quantity to <strong>${seatCount}</strong> camp seats if you use one universal $30 payment link.</p>`
+      : `<p>No Stripe link is configured yet. Add one in <strong>scripts/site-config.js</strong>.</p>
+         <p>${config.paymentNote || ""}</p>`;
+
+    showStatus(
+      `<strong>Registration saved.</strong>
+       <p>Saved ${children.length} child${children.length === 1 ? "" : "ren"} for ${selectedCamps.length} camp${selectedCamps.length === 1 ? "" : "s"}.</p>
+       <p>Total due: <strong>${data.money(totalDue)}</strong></p>
+       ${paymentMarkup}`,
+      true
+    );
+
+    window.location.hash = "summary-card";
+  });
+
+  renderCampPicker();
+  addCamperCard();
+  form.signatureDate.value = getLocalToday();
+  updateSummary();
+})();

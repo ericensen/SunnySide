@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SunnySide Summer Camp Checkout</title>
+  <meta
+    name="description"
+    content="SunnySide Summer Camp registration, waiver, and payment handoff."
+  >
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap"
+    rel="stylesheet"
+  >
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="index.html">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>
+          <strong>SunnySide</strong>
+          <small>Summer Camp</small>
+        </span>
+      </a>
+      <nav class="site-nav">
+        <a href="index.html#lineup">Camp Lineup</a>
+        <a href="SETUP.md">Setup Notes</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="checkout-hero">
+        <div>
+          <p class="eyebrow">Registration and Waiver</p>
+          <h1>Reserve camp spots in one pass.</h1>
+          <p class="hero-text">
+            Parents can choose camps, add one or more kids, sign the waiver, and
+            move on to payment from the same page.
+          </p>
+        </div>
+      </section>
+
+      <section class="checkout-layout">
+        <form class="form-card" id="checkout-form" novalidate>
+          <div class="form-section">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">Parent Info</p>
+                <h2>Who should we contact?</h2>
+              </div>
+            </div>
+            <div class="form-grid">
+              <label>
+                Parent full name
+                <input type="text" name="parentName" required>
+              </label>
+              <label>
+                Email
+                <input type="email" name="email" required>
+              </label>
+              <label>
+                Phone
+                <input type="tel" name="phone" required>
+              </label>
+              <label>
+                Emergency contact
+                <input type="text" name="emergencyContact" required>
+              </label>
+              <label>
+                Emergency phone
+                <input type="tel" name="emergencyPhone" required>
+              </label>
+              <label class="full-width">
+                Anything we should know?
+                <textarea name="familyNotes" rows="3" placeholder="Optional notes for pickup, allergies, or comfort"></textarea>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">Choose Camps</p>
+                <h2>Select one or more camp days.</h2>
+              </div>
+            </div>
+            <div class="camp-picker" data-camp-picker></div>
+          </div>
+
+          <div class="form-section">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">Camper Details</p>
+                <h2>Add each child attending.</h2>
+              </div>
+            </div>
+            <div class="camper-list" data-camper-list></div>
+            <button class="button button-secondary button-small" type="button" data-add-camper>
+              Add Another Child
+            </button>
+          </div>
+
+          <div class="form-section">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">Waiver</p>
+                <h2>Typed signature and consent.</h2>
+              </div>
+            </div>
+            <div class="waiver-box">
+              <p>
+                I am the parent or legal guardian of the registered child or children.
+                I understand that camp activities may include art supplies, food prep,
+                light movement, science materials, and water play. I authorize basic
+                first aid if needed and confirm the information above is accurate.
+              </p>
+              <label class="checkbox-row">
+                <input type="checkbox" name="waiverAccepted" required>
+                <span>I agree to the waiver above.</span>
+              </label>
+              <div class="form-grid">
+                <label>
+                  Typed signature
+                  <input type="text" name="signatureName" required>
+                </label>
+                <label>
+                  Date
+                  <input type="date" name="signatureDate" required>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="button button-primary" type="submit">Save Registration and Continue</button>
+            <p class="form-note">
+              This page can save registrations locally now and is ready for a Stripe
+              payment link plus Google Sheets tracking.
+            </p>
+          </div>
+        </form>
+
+        <aside class="summary-card" id="summary-card">
+          <p class="eyebrow">Checkout Summary</p>
+          <h2>Everything updates live.</h2>
+          <div class="summary-stack">
+            <div>
+              <span>Selected camps</span>
+              <strong data-summary-camps>0</strong>
+            </div>
+            <div>
+              <span>Kids attending</span>
+              <strong data-summary-kids>0</strong>
+            </div>
+            <div>
+              <span>Total camp seats</span>
+              <strong data-summary-seats>0</strong>
+            </div>
+            <div>
+              <span>Total due</span>
+              <strong data-summary-total>$0</strong>
+            </div>
+          </div>
+          <div class="summary-list" data-summary-list></div>
+          <div class="status-box hidden" id="status-box" role="status" aria-live="polite"></div>
+        </aside>
+      </section>
+
+      <template id="camper-template">
+        <article class="camper-card">
+          <div class="camper-card-header">
+            <h3>Child <span data-camper-number></span></h3>
+            <button class="text-button" type="button" data-remove-camper>Remove</button>
+          </div>
+          <div class="form-grid">
+            <label>
+              Child name
+              <input type="text" name="childName" required>
+            </label>
+            <label>
+              Age
+              <input type="number" name="childAge" min="3" max="16" required>
+            </label>
+            <label class="full-width">
+              Allergies or notes
+              <textarea name="childNotes" rows="2" placeholder="Optional"></textarea>
+            </label>
+          </div>
+        </article>
+      </template>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>SunnySide Summer Camp</strong>
+        <p>Ready for sunshine, creativity, and movement.</p>
+      </div>
+      <div class="footer-meta">
+        <a href="index.html">Home</a>
+        <a href="SETUP.md">Setup Notes</a>
+      </div>
+    </footer>
+  </div>
+
+  <script src="scripts/site-config.js"></script>
+  <script src="scripts/camp-data.js"></script>
+  <script src="scripts/checkout.js"></script>
+</body>
+</html>
