@@ -37,6 +37,20 @@ Open `scripts/site-config.js` and set:
 stripePaymentLink: "https://buy.stripe.com/your-link"
 ```
 
+The project is currently wired to this Stripe **test-mode** Payment Link:
+
+```text
+https://buy.stripe.com/test_9B6cN4cjKdWK56VfyVco000
+```
+
+Created in the Stripe sandbox account as:
+
+- Product: `SunnySide Camp Seat`
+- Product ID: `prod_UMU84L3fN48GBf`
+- Price: `$30.00`
+- Price ID: `price_1TNlDgANrtSgrYf0qgMIeTZy`
+- Payment Link ID: `plink_1TNlEbANrtSgrYf0w14tOmYM`
+
 Recommended simple setup:
 
 1. In Stripe, create one product called `SunnySide Camp Seat`.
@@ -45,6 +59,13 @@ Recommended simple setup:
 4. Paste that link into `scripts/site-config.js`.
 
 Parents can then use one payment link for one kid, multiple kids, or multiple camps. The checkout page tells them how many camp seats to pay for.
+
+### Important note about the current Stripe link
+
+- The current link is in Stripe **sandbox/test mode**, not live mode.
+- Before taking real payments, recreate this product, price, and payment link in your **live** Stripe account and replace the test link in `scripts/site-config.js`.
+- If you want parents to change the number of seats directly in Stripe Checkout, enable **adjustable quantity** on the Payment Link in Stripe.
+- Stripe stores `$30.00` as `unit_amount: 3000` because USD uses cents.
 
 ## Registration tracking setup
 

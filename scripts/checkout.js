@@ -157,6 +157,24 @@
     statusBox.innerHTML = messageHtml;
   }
 
+  function buildPaymentLink(email) {
+    if (!config.stripePaymentLink) {
+      return "";
+    }
+
+    try {
+      const url = new URL(config.stripePaymentLink);
+
+      if (email) {
+        url.searchParams.set("prefilled_email", email);
+      }
+
+      return url.toString();
+    } catch (error) {
+      return config.stripePaymentLink;
+    }
+  }
+
   form.addEventListener("input", updateSummary);
 
   addCamperButton.addEventListener("click", function () {
@@ -224,9 +242,11 @@
 
     sendToWebhook(payload);
 
-    const paymentMarkup = config.stripePaymentLink
-      ? `<p><a class="button button-primary" href="${config.stripePaymentLink}" target="_blank" rel="noreferrer">Open Payment Link</a></p>
-         <p>Set the Stripe quantity to <strong>${seatCount}</strong> camp seats if you use one universal $30 payment link.</p>`
+    const paymentLink = buildPaymentLink(payload.email);
+    const paymentMarkup = paymentLink
+      ? `<p><a class="button button-primary" href="${paymentLink}" target="_blank" rel="noreferrer">Open Payment Link</a></p>
+         <p>Pay for <strong>${seatCount}</strong> camp seat${seatCount === 1 ? "" : "s"} in Stripe.</p>
+         <p>If adjustable quantity is enabled on the Payment Link, set the quantity to <strong>${seatCount}</strong>.</p>`
       : `<p>No Stripe link is configured yet. Add one in <strong>scripts/site-config.js</strong>.</p>
          <p>${config.paymentNote || ""}</p>`;
 

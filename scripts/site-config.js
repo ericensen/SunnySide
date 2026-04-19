@@ -1,6 +1,6 @@
 window.SUNNYSIDE_CONFIG = {
-  stripePaymentLink: "",
+  stripePaymentLink: "https://buy.stripe.com/test_9B6cN4cjKdWK56VfyVco000",
   registrationWebhook: "",
   paymentNote:
-    "Create one Stripe Payment Link for a $30 camp seat with adjustable quantity so parents can pay for multiple kids or multiple camps."
+    "This site is connected to a Stripe sandbox payment link for a $30 camp seat. Enable adjustable quantity on the Payment Link in Stripe if you want parents to change seat counts directly during checkout."
 };
