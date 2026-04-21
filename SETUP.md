@@ -55,7 +55,7 @@ Recommended simple setup:
 
 1. In Stripe, create one product called `SunnySide Camp Seat`.
 2. Price it at `$30`.
-3. Create a Payment Link with adjustable quantity enabled.
+3. Create a Payment Link for the camp seat price.
 4. Paste that link into `scripts/site-config.js`.
 
 Parents can then use one payment link for one kid, multiple kids, or multiple camps. The checkout page tells them how many camp seats to pay for.
@@ -64,12 +64,12 @@ Parents can then use one payment link for one kid, multiple kids, or multiple ca
 
 - The current link is in Stripe **sandbox/test mode**, not live mode.
 - Before taking real payments, recreate this product, price, and payment link in your **live** Stripe account and replace the test link in `scripts/site-config.js`.
-- If you want parents to change the number of seats directly in Stripe Checkout, enable **adjustable quantity** on the Payment Link in Stripe.
+- Do **not** enable adjustable quantity unless you also want parents changing seat counts inside Stripe. The site is currently designed so the registration form is the source of truth for child names and selected camps.
 - Stripe stores `$30.00` as `unit_amount: 3000` because USD uses cents.
 
 ## Registration tracking setup
 
-The registration page can also send the submitted payload to a webhook.
+The registration page can also send submitted registrations and payment confirmations to one webhook.
 
 Open `scripts/site-config.js` and set:
 
@@ -85,11 +85,45 @@ The easiest lightweight path is Google Apps Script plus Google Sheets.
 4. Deploy the script as a web app.
 5. Paste the web app URL into `registrationWebhook`.
 
-That gives you a simple spreadsheet-based registration log with each child, family notes, and camp selection recorded.
+That gives you a spreadsheet-based registration log with each child, family notes, camp selection, and Stripe reconciliation fields.
+
+### Payment reconciliation setup
+
+The checkout flow now sends a `client_reference_id` into Stripe using the registration ID, and the site includes a `confirmation.html` page that can send the completed Stripe checkout session back to your Apps Script endpoint.
+
+To finish that setup:
+
+1. In Apps Script, open **Project Settings** and add a script property named `STRIPE_SECRET_KEY`.
+2. Set `STRIPE_SECRET_KEY` to your Stripe **test secret key** while you are in sandbox mode.
+3. Deploy or redeploy the Apps Script web app after updating `apps-script/Code.gs`.
+4. Paste the deployed web app URL into `registrationWebhook` in `scripts/site-config.js`.
+5. In Stripe, open your Payment Link and set **After payment** to redirect to your site.
+6. Use this redirect URL pattern:
+
+```text
+https://YOUR-SITE/confirmation.html?session_id={CHECKOUT_SESSION_ID}
+```
+
+When Stripe redirects to that page after payment, the site sends the checkout session ID to Apps Script. Apps Script then looks up the Stripe Checkout Session with your secret key, matches the `client_reference_id` back to the registration ID, and marks matching rows as paid.
+
+### Optional Stripe webhook support
+
+`apps-script/Code.gs` also includes optional support for `checkout.session.completed` events posted directly from Stripe.
+
+- This version uses a lightweight query-string token, not Stripe signature verification.
+- Add a script property named `SUNNYSIDE_INTEGRATION_TOKEN` if you want to use it.
+- Configure the webhook URL in Stripe as:
+
+```text
+YOUR_APPS_SCRIPT_WEB_APP_URL?token=YOUR_TOKEN_HERE
+```
+
+- For a full production launch, move this webhook handling to a server that can verify Stripe webhook signatures.
 
 ## Notes
 
-- Payment is not truly live until you add a Stripe link.
+- Payment is not truly live until you switch from the Stripe test link to a live Payment Link.
 - Central registration tracking is not truly live until you add a webhook URL.
+- Automatic payment reconciliation is not truly live until you add the Apps Script `STRIPE_SECRET_KEY` property and configure the Stripe redirect to `confirmation.html`.
 - The built-in local backup uses browser storage and is only a fallback, not your main production database.
 - The site shows the 20-seat limit, but true capacity enforcement still depends on your live registration backend or spreadsheet process.

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SunnySide Payment Confirmation</title>
+  <meta
+    name="description"
+    content="SunnySide Summer Camp payment confirmation and registration reconciliation."
+  >
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap"
+    rel="stylesheet"
+  >
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="index.html">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>
+          <strong>SunnySide</strong>
+          <small>Summer Camp</small>
+        </span>
+      </a>
+      <nav class="site-nav">
+        <a href="index.html#lineup">Camp Lineup</a>
+        <a href="checkout.html">Back to Checkout</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="checkout-hero">
+        <div>
+          <p class="eyebrow">Payment Confirmation</p>
+          <h1>Thanks for completing your payment.</h1>
+          <p class="hero-text">
+            This page helps us match your Stripe payment back to your registration
+            so your camp spots can be marked paid.
+          </p>
+        </div>
+      </section>
+
+      <section class="checkout-layout">
+        <section class="form-card">
+          <div class="form-section">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">Confirmation Status</p>
+                <h2>We are checking your registration.</h2>
+              </div>
+            </div>
+            <div class="status-box" id="confirmation-status" role="status" aria-live="polite">
+              <strong>Waiting for payment details...</strong>
+              <p>This page needs the Stripe checkout session ID to reconcile your payment.</p>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">What Happens Next</p>
+                <h2>After reconciliation</h2>
+              </div>
+            </div>
+            <p class="form-note">
+              Once the payment is matched, the registration sheet can show that this
+              family has paid and which Stripe checkout session was used.
+            </p>
+          </div>
+        </section>
+
+        <aside class="summary-card">
+          <p class="eyebrow">Payment Details</p>
+          <h2>Reference information</h2>
+          <div class="summary-stack">
+            <div>
+              <span>Registration ID</span>
+              <strong data-registration-id>Pending</strong>
+            </div>
+            <div>
+              <span>Checkout session</span>
+              <strong data-session-id>Pending</strong>
+            </div>
+            <div>
+              <span>Parent email</span>
+              <strong data-parent-email>Pending</strong>
+            </div>
+            <div>
+              <span>Expected total</span>
+              <strong data-total-due>Pending</strong>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>SunnySide Summer Camp</strong>
+        <p>One bright camp day at a time.</p>
+      </div>
+      <div class="footer-meta">
+        <a href="index.html">Home</a>
+        <a href="SETUP.md">Setup Notes</a>
+      </div>
+    </footer>
+  </div>
+
+  <script src="scripts/site-config.js"></script>
+  <script src="scripts/camp-data.js"></script>
+  <script src="scripts/confirmation.js"></script>
+</body>
+</html>

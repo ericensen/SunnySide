@@ -125,6 +125,20 @@
     localStorage.setItem(key, JSON.stringify(existing));
   }
 
+  function savePendingRegistration(payload) {
+    localStorage.setItem(
+      "sunnySidePendingRegistration",
+      JSON.stringify({
+        registrationId: payload.registrationId,
+        parentName: payload.parentName,
+        email: payload.email,
+        seatCount: payload.seatCount,
+        totalDue: payload.totalDue,
+        submittedAt: payload.submittedAt
+      })
+    );
+  }
+
   function sendToWebhook(payload) {
     if (!config.registrationWebhook) {
       return;
@@ -157,7 +171,7 @@
     statusBox.innerHTML = messageHtml;
   }
 
-  function buildPaymentLink(email) {
+  function buildPaymentLink(payload) {
     if (!config.stripePaymentLink) {
       return "";
     }
@@ -165,8 +179,16 @@
     try {
       const url = new URL(config.stripePaymentLink);
 
-      if (email) {
-        url.searchParams.set("prefilled_email", email);
+      if (payload.email) {
+        url.searchParams.set("prefilled_email", payload.email);
+      }
+
+      if (payload.registrationId) {
+        url.searchParams.set("client_reference_id", payload.registrationId);
+        url.searchParams.set("utm_source", "sunnyside_site");
+        url.searchParams.set("utm_medium", "registration");
+        url.searchParams.set("utm_campaign", "summer_camp_checkout");
+        url.searchParams.set("utm_content", payload.registrationId);
       }
 
       return url.toString();
@@ -232,6 +254,7 @@
 
     try {
       saveLocalRegistration(payload);
+      savePendingRegistration(payload);
     } catch (error) {
       showStatus(
         "<strong>Registration details could not be saved in this browser.</strong><p>Please keep this page open and complete payment after you set up your live webhook and payment link.</p>",
@@ -242,11 +265,12 @@
 
     sendToWebhook(payload);
 
-    const paymentLink = buildPaymentLink(payload.email);
+    const paymentLink = buildPaymentLink(payload);
     const paymentMarkup = paymentLink
       ? `<p><a class="button button-primary" href="${paymentLink}" target="_blank" rel="noreferrer">Open Payment Link</a></p>
          <p>Pay for <strong>${seatCount}</strong> camp seat${seatCount === 1 ? "" : "s"} in Stripe.</p>
-         <p>If adjustable quantity is enabled on the Payment Link, set the quantity to <strong>${seatCount}</strong>.</p>`
+         <p>This payment link includes your registration ID for reconciliation after payment.</p>
+         <p>If you need to change children or camp selections, return to this form instead of changing payment details inside Stripe.</p>`
       : `<p>No Stripe link is configured yet. Add one in <strong>scripts/site-config.js</strong>.</p>
          <p>${config.paymentNote || ""}</p>`;
 
