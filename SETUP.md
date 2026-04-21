@@ -40,7 +40,7 @@ stripePaymentLink: "https://buy.stripe.com/your-link"
 The project is currently wired to this Stripe **test-mode** Payment Link:
 
 ```text
-https://buy.stripe.com/test_9B6cN4cjKdWK56VfyVco000
+https://buy.stripe.com/test_4gMcN4bfG05UfLz1I5co001
 ```
 
 Created in the Stripe sandbox account as:
