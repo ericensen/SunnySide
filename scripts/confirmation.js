@@ -2,6 +2,8 @@
   const config = window.SUNNYSIDE_CONFIG || {};
   const data = window.SUNNYSIDE_DATA;
   const statusBox = document.getElementById("confirmation-status");
+  const MAX_STATUS_POLLS = 8;
+  const STATUS_POLL_DELAY = 1500;
 
   if (!statusBox) {
     return;
@@ -17,7 +19,7 @@
     "";
 
   updateReferenceField("[data-registration-id]", registrationId || "Not found");
-  updateReferenceField("[data-payment-status]", checkoutSessionId ? "Received" : "Pending");
+  updateReferenceField("[data-payment-status]", checkoutSessionId ? "Checking..." : "Pending");
   updateReferenceField(
     "[data-parent-email]",
     (pendingRegistration && pendingRegistration.email) || "Not found"
@@ -53,10 +55,20 @@
       confirmedAt: new Date().toISOString()
     });
 
-    if (queued) {
-      markPendingRegistration(checkoutSessionId);
+    if (queued && registrationId) {
+      markPendingRegistration(checkoutSessionId, "confirmation_sent");
       showMessage(
-        "<strong>Your payment has been received.</strong><p>Your registration is being finalized now. You are all set for your selected camp day${pendingRegistration && pendingRegistration.seatCount === 1 ? "" : "s"}.</p>",
+        "<strong>Your payment has been received.</strong><p>We are matching it with your registration now. This can take a few seconds.</p>",
+        true
+      );
+      pollForFinalStatus(0);
+      return;
+    }
+
+    if (queued) {
+      updateReferenceField("[data-payment-status]", "Received");
+      showMessage(
+        "<strong>Your payment has been received.</strong><p>We could not automatically display the final registration status on this page, but SunnySide can still confirm it from Stripe if needed.</p>",
         true
       );
       return;
@@ -81,7 +93,7 @@
     }
   }
 
-  function markPendingRegistration(sessionId) {
+  function markPendingRegistration(sessionId, paymentStatus) {
     if (!pendingRegistration) {
       return;
     }
@@ -96,7 +108,7 @@
         totalDue: pendingRegistration.totalDue,
         submittedAt: pendingRegistration.submittedAt,
         checkoutSessionId: sessionId,
-        paymentStatus: "confirmation_sent"
+        paymentStatus: paymentStatus || pendingRegistration.paymentStatus || "pending"
       })
     );
   }
@@ -121,6 +133,122 @@
     });
 
     return true;
+  }
+
+  function pollForFinalStatus(attempt) {
+    fetchRegistrationStatus(registrationId)
+      .then(function (result) {
+        if (!result || !result.ok) {
+          if (attempt < MAX_STATUS_POLLS - 1) {
+            retryConfirmation(attempt);
+            return;
+          }
+
+          showPendingHelp();
+          return;
+        }
+
+        const normalizedStatus = String(result.paymentStatus || "").toLowerCase();
+
+        if (normalizedStatus === "paid") {
+          updateReferenceField("[data-payment-status]", "Paid");
+          markPendingRegistration(checkoutSessionId, "paid");
+          showMessage(
+            "<strong>Your camp payment is confirmed.</strong><p>Your registration is all set, and SunnySide has your payment on file.</p>",
+            true
+          );
+          return;
+        }
+
+        if (normalizedStatus === "paid_amount_mismatch") {
+          updateReferenceField("[data-payment-status]", "Needs Review");
+          markPendingRegistration(checkoutSessionId, "paid_amount_mismatch");
+          showMessage(
+            "<strong>Your payment was received.</strong><p>We are double-checking the amount against your registration and will follow up if anything needs attention.</p>",
+            false
+          );
+          return;
+        }
+
+        if (attempt < MAX_STATUS_POLLS - 1) {
+          retryConfirmation(attempt);
+          return;
+        }
+
+        showPendingHelp(result.notes);
+      })
+      .catch(function () {
+        if (attempt < MAX_STATUS_POLLS - 1) {
+          retryConfirmation(attempt);
+          return;
+        }
+
+        showPendingHelp();
+      });
+  }
+
+  function retryConfirmation(attempt) {
+    window.setTimeout(function () {
+      sendConfirmation({
+        eventType: "payment_confirmation",
+        checkoutSessionId: checkoutSessionId,
+        registrationId: registrationId,
+        confirmedAt: new Date().toISOString()
+      });
+      pollForFinalStatus(attempt + 1);
+    }, STATUS_POLL_DELAY);
+  }
+
+  function fetchRegistrationStatus(targetRegistrationId) {
+    return new Promise(function (resolve, reject) {
+      if (!config.registrationWebhook || !targetRegistrationId) {
+        resolve(null);
+        return;
+      }
+
+      const callbackName = "__sunnySideStatus" + Date.now() + Math.floor(Math.random() * 1000);
+      const script = document.createElement("script");
+      const url = new URL(config.registrationWebhook);
+
+      window[callbackName] = function (payload) {
+        cleanup();
+        resolve(payload);
+      };
+
+      script.onerror = function () {
+        cleanup();
+        reject(new Error("Status request failed."));
+      };
+
+      url.searchParams.set("action", "status");
+      url.searchParams.set("registrationId", targetRegistrationId);
+      url.searchParams.set("callback", callbackName);
+      url.searchParams.set("_", String(Date.now()));
+      script.src = url.toString();
+      document.body.appendChild(script);
+
+      function cleanup() {
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+
+        try {
+          delete window[callbackName];
+        } catch (error) {
+          window[callbackName] = undefined;
+        }
+      }
+    });
+  }
+
+  function showPendingHelp(notes) {
+    updateReferenceField("[data-payment-status]", "Pending Review");
+    showMessage(
+      "<strong>Your payment was received, but the final confirmation is still catching up.</strong><p>Please refresh this page in a moment. If it still shows pending later, SunnySide can verify it from the registration sheet." +
+        (notes ? " " + notes : "") +
+        "</p>",
+      false
+    );
   }
 
   function updateReferenceField(selector, value) {

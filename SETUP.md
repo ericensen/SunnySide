@@ -87,6 +87,24 @@ The easiest lightweight path is Google Apps Script plus Google Sheets.
 
 That gives you a spreadsheet-based registration log with each child, family notes, camp selection, and Stripe reconciliation fields.
 
+### Google Sheet admin tabs
+
+Once the Apps Script code is updated and redeployed, it will automatically maintain three organizer-friendly tabs in the same spreadsheet:
+
+- `Registrations`
+  - your raw record of one row per child per camp day
+- `Camp Summary`
+  - registered seats by camp
+  - paid seats by camp
+  - pending or follow-up seats
+  - paid revenue and expected revenue
+  - remaining spots based on the internal 20-seat planning cap
+- `Payment Follow Up`
+  - one row per registration that still needs attention
+  - includes parent contact info, selected camp days, children, amount due, payment status, and reconciliation notes
+
+These report tabs rebuild automatically whenever a registration is submitted or a payment is reconciled.
+
 ### Payment reconciliation setup
 
 The checkout flow now sends a `client_reference_id` into Stripe using the registration ID, and the site includes a `confirmation.html` page that can send the completed Stripe checkout session back to your Apps Script endpoint.
@@ -126,4 +144,4 @@ YOUR_APPS_SCRIPT_WEB_APP_URL?token=YOUR_TOKEN_HERE
 - Central registration tracking is not truly live until you add a webhook URL.
 - Automatic payment reconciliation is not truly live until you add the Apps Script `STRIPE_SECRET_KEY` property and configure the Stripe redirect to `confirmation.html`.
 - The built-in local backup uses browser storage and is only a fallback, not your main production database.
-- The site shows the 20-seat limit, but true capacity enforcement still depends on your live registration backend or spreadsheet process.
+- The spreadsheet summary uses the internal 20-seat planning cap, but true capacity enforcement still depends on your live registration backend or spreadsheet process.

@@ -1,5 +1,8 @@
 const SPREADSHEET_ID = "1zqINFZdhJjMSogbwOsgAM_FwUJgj3KwTnAy7n3NXmug";
 const SHEET_NAME = "Registrations";
+const CAMP_SUMMARY_SHEET_NAME = "Camp Summary";
+const PAYMENT_FOLLOW_UP_SHEET_NAME = "Payment Follow Up";
+const DEFAULT_CAMP_CAPACITY = 20;
 const STRIPE_SECRET_KEY_PROPERTY = "STRIPE_SECRET_KEY";
 const INTEGRATION_TOKEN_PROPERTY = "SUNNYSIDE_INTEGRATION_TOKEN";
 const REGISTRATION_HEADERS = [
@@ -122,6 +125,8 @@ function handleRegistrationSubmission_(payload) {
       .setValues(rows);
   }
 
+  refreshReportingSheets_();
+
   return outputJson_({
     ok: true,
     rowsWritten: rows.length,
@@ -211,34 +216,35 @@ function handleStripeEvent_(e, payload) {
 
 function handleStatusRequest_(e) {
   const registrationId = getParameter_(e, "registrationId");
+  const callback = getParameter_(e, "callback");
 
   if (!registrationId) {
-    return outputJson_({
+    return outputJsonOrJsonp_({
       ok: false,
       error: "Missing registrationId parameter."
-    });
+    }, callback);
   }
 
   const context = getSheetContext_();
   const matches = findRegistrationRows_(context, registrationId);
 
   if (!matches.length) {
-    return outputJson_({
+    return outputJsonOrJsonp_({
       ok: false,
       error: "Registration ID not found."
-    });
+    }, callback);
   }
 
   const firstRow = matches[0].row;
 
-  return outputJson_({
+  return outputJsonOrJsonp_({
     ok: true,
     registrationId: registrationId,
     paymentStatus: firstRow[context.index["Payment Status"]],
     stripeCheckoutSessionId: firstRow[context.index["Stripe Checkout Session ID"]],
     paidAt: firstRow[context.index["Paid At"]],
     notes: firstRow[context.index["Reconciliation Notes"]]
-  });
+  }, callback);
 }
 
 function reconcilePayment_(registrationId, session, source) {
@@ -282,6 +288,7 @@ function reconcilePayment_(registrationId, session, source) {
   });
 
   writeUpdatedRows_(context, matches);
+  refreshReportingSheets_();
 
   return {
     status: status,
@@ -364,6 +371,211 @@ function getSheetContext_() {
   };
 }
 
+function refreshReportingSheets_() {
+  const context = getSheetContext_();
+  const registrations = getRegistrationObjects_(context);
+
+  rebuildCampSummarySheet_(context.sheet.getParent(), registrations);
+  rebuildPaymentFollowUpSheet_(context.sheet.getParent(), registrations);
+}
+
+function getRegistrationObjects_(context) {
+  const dataRowCount = Math.max(context.sheet.getLastRow() - 1, 0);
+
+  if (!dataRowCount) {
+    return [];
+  }
+
+  const values = context.sheet.getRange(2, 1, dataRowCount, context.headers.length).getValues();
+
+  return values.map(function (row) {
+    return rowObjectFromValues_(row, context.headers);
+  });
+}
+
+function rebuildCampSummarySheet_(spreadsheet, registrations) {
+  const sheet = getOrCreateSheet_(spreadsheet, CAMP_SUMMARY_SHEET_NAME);
+  const headers = [
+    "Camp Title",
+    "Camp Date",
+    "Registered Seats",
+    "Paid Seats",
+    "Pending / Follow Up Seats",
+    "Families",
+    "Paid Revenue",
+    "Expected Revenue",
+    "Remaining Spots",
+    "Status"
+  ];
+  const summaryByCamp = {};
+  const rows = [];
+
+  registrations.forEach(function (registration) {
+    const campKey = [registration["Camp Date"], registration["Camp Title"]].join(" | ");
+
+    if (!summaryByCamp[campKey]) {
+      summaryByCamp[campKey] = {
+        title: registration["Camp Title"] || "",
+        date: registration["Camp Date"] || "",
+        registeredSeats: 0,
+        paidSeats: 0,
+        followUpSeats: 0,
+        families: {},
+        paidRevenue: 0,
+        expectedRevenue: 0
+      };
+    }
+
+    const summary = summaryByCamp[campKey];
+    const paymentStatus = String(registration["Payment Status"] || "").toLowerCase();
+    const expectedRevenue = parseNumber_(registration["Total Due"]);
+    const paidRevenue = parseNumber_(registration["Stripe Amount Total"]);
+
+    summary.registeredSeats += 1;
+
+    if (registration["Registration ID"]) {
+      summary.families[registration["Registration ID"]] = true;
+    }
+
+    if (paymentStatus === "paid") {
+      summary.paidSeats += 1;
+    } else {
+      summary.followUpSeats += 1;
+    }
+
+    if (expectedRevenue) {
+      summary.expectedRevenue += expectedRevenue / Math.max(parseNumber_(registration["Seat Count"]), 1);
+    }
+
+    if (paidRevenue) {
+      summary.paidRevenue += paidRevenue / Math.max(parseNumber_(registration["Seat Count"]), 1);
+    }
+  });
+
+  Object.keys(summaryByCamp)
+    .sort(function (left, right) {
+      const leftSummary = summaryByCamp[left];
+      const rightSummary = summaryByCamp[right];
+      const leftDate = sortableText_(leftSummary.date);
+      const rightDate = sortableText_(rightSummary.date);
+      const leftTitle = sortableText_(leftSummary.title);
+      const rightTitle = sortableText_(rightSummary.title);
+
+      if (leftDate === rightDate) {
+        return leftTitle.localeCompare(rightTitle);
+      }
+
+      return leftDate.localeCompare(rightDate);
+    })
+    .forEach(function (campKey) {
+      const summary = summaryByCamp[campKey];
+      const remainingSpots = Math.max(DEFAULT_CAMP_CAPACITY - summary.registeredSeats, 0);
+
+      rows.push([
+        summary.title,
+        summary.date,
+        summary.registeredSeats,
+        summary.paidSeats,
+        summary.followUpSeats,
+        Object.keys(summary.families).length,
+        roundCurrency_(summary.paidRevenue),
+        roundCurrency_(summary.expectedRevenue),
+        remainingSpots,
+        getAvailabilityStatus_(remainingSpots)
+      ]);
+    });
+
+  writeReportSheet_(sheet, headers, rows);
+  formatCampSummarySheet_(sheet, rows.length);
+}
+
+function rebuildPaymentFollowUpSheet_(spreadsheet, registrations) {
+  const sheet = getOrCreateSheet_(spreadsheet, PAYMENT_FOLLOW_UP_SHEET_NAME);
+  const headers = [
+    "Submitted At",
+    "Registration ID",
+    "Parent Name",
+    "Email",
+    "Phone",
+    "Camp Days",
+    "Children",
+    "Seat Count",
+    "Total Due",
+    "Payment Status",
+    "Last Updated At",
+    "Reconciliation Notes"
+  ];
+  const followUpByRegistration = {};
+  const rows = [];
+
+  registrations.forEach(function (registration) {
+    const paymentStatus = String(registration["Payment Status"] || "").toLowerCase();
+    const registrationId = registration["Registration ID"] || "";
+
+    if (!registrationId || paymentStatus === "paid") {
+      return;
+    }
+
+    if (!followUpByRegistration[registrationId]) {
+      followUpByRegistration[registrationId] = {
+        submittedAt: registration["Submitted At"] || "",
+        registrationId: registrationId,
+        parentName: registration["Parent Name"] || "",
+        email: registration["Email"] || "",
+        phone: registration["Phone"] || "",
+        campTitles: {},
+        childNames: {},
+        seatCount: parseNumber_(registration["Seat Count"]),
+        totalDue: parseNumber_(registration["Total Due"]),
+        paymentStatus: registration["Payment Status"] || "",
+        lastUpdatedAt: registration["Last Updated At"] || "",
+        notes: registration["Reconciliation Notes"] || ""
+      };
+    }
+
+    const followUp = followUpByRegistration[registrationId];
+
+    if (registration["Camp Title"]) {
+      followUp.campTitles[registration["Camp Title"]] = true;
+    }
+
+    if (registration["Child Name"]) {
+      followUp.childNames[registration["Child Name"]] = true;
+    }
+
+    followUp.notes = followUp.notes || registration["Reconciliation Notes"] || "";
+    followUp.lastUpdatedAt = registration["Last Updated At"] || followUp.lastUpdatedAt;
+  });
+
+  Object.keys(followUpByRegistration)
+    .sort(function (left, right) {
+      return sortableText_(followUpByRegistration[right].submittedAt).localeCompare(
+        sortableText_(followUpByRegistration[left].submittedAt)
+      );
+    })
+    .forEach(function (registrationId) {
+      const followUp = followUpByRegistration[registrationId];
+
+      rows.push([
+        followUp.submittedAt,
+        followUp.registrationId,
+        followUp.parentName,
+        followUp.email,
+        followUp.phone,
+        Object.keys(followUp.campTitles).join(", "),
+        Object.keys(followUp.childNames).join(", "),
+        followUp.seatCount,
+        roundCurrency_(followUp.totalDue),
+        followUp.paymentStatus,
+        followUp.lastUpdatedAt,
+        followUp.notes
+      ]);
+    });
+
+  writeReportSheet_(sheet, headers, rows);
+  formatPaymentFollowUpSheet_(sheet, rows.length);
+}
+
 function ensureHeaders_(sheet) {
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(REGISTRATION_HEADERS);
@@ -391,6 +603,68 @@ function ensureHeaders_(sheet) {
   return headers;
 }
 
+function getOrCreateSheet_(spreadsheet, sheetName) {
+  let sheet = spreadsheet.getSheetByName(sheetName);
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(sheetName);
+  }
+
+  return sheet;
+}
+
+function writeReportSheet_(sheet, headers, rows) {
+  const existingFilter = sheet.getFilter();
+
+  if (existingFilter) {
+    existingFilter.remove();
+  }
+
+  sheet.clearContents();
+  sheet.clearFormats();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+
+  if (rows.length) {
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  }
+
+  sheet.setFrozenRows(1);
+}
+
+function formatCampSummarySheet_(sheet, rowCount) {
+  const totalRows = Math.max(rowCount + 1, 1);
+
+  sheet.autoResizeColumns(1, 10);
+  sheet.getRange(1, 1, 1, 10).setFontWeight("bold");
+  sheet.getRange(1, 1, 1, 10).setBackground("#fde68a");
+
+  if (rowCount) {
+    sheet.getRange(2, 7, rowCount, 2).setNumberFormat("$0.00");
+    sheet.getRange(2, 10, rowCount, 1).setFontWeight("bold");
+    applyStatusColors_(sheet.getRange(2, 10, rowCount, 1));
+  }
+
+  if (totalRows > 1) {
+    sheet.getRange(1, 1, totalRows, 10).createFilter();
+  }
+}
+
+function formatPaymentFollowUpSheet_(sheet, rowCount) {
+  const totalRows = Math.max(rowCount + 1, 1);
+
+  sheet.autoResizeColumns(1, 12);
+  sheet.getRange(1, 1, 1, 12).setFontWeight("bold");
+  sheet.getRange(1, 1, 1, 12).setBackground("#bfdbfe");
+
+  if (rowCount) {
+    sheet.getRange(2, 9, rowCount, 1).setNumberFormat("$0.00");
+  }
+
+  if (totalRows > 1) {
+    sheet.getRange(1, 1, totalRows, 12).createFilter();
+  }
+}
+
 function buildHeaderIndex_(headers) {
   const index = {};
 
@@ -405,6 +679,16 @@ function rowValuesFromObject_(rowObject, headers) {
   return headers.map(function (header) {
     return Object.prototype.hasOwnProperty.call(rowObject, header) ? rowObject[header] : "";
   });
+}
+
+function rowObjectFromValues_(rowValues, headers) {
+  const rowObject = {};
+
+  headers.forEach(function (header, index) {
+    rowObject[header] = rowValues[index];
+  });
+
+  return rowObject;
 }
 
 function getStripeCustomerEmail_(session) {
@@ -440,8 +724,69 @@ function parseNumber_(value) {
   return isNaN(parsed) ? 0 : parsed;
 }
 
+function roundCurrency_(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function sortableText_(value) {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  return String(value || "");
+}
+
+function getAvailabilityStatus_(remainingSpots) {
+  if (remainingSpots <= 0) {
+    return "Waitlist / Full";
+  }
+
+  if (remainingSpots <= 5) {
+    return "Nearly Full";
+  }
+
+  return "Open";
+}
+
+function applyStatusColors_(range) {
+  const values = range.getValues();
+  const backgrounds = values.map(function (row) {
+    const status = String(row[0] || "");
+
+    if (status === "Waitlist / Full") {
+      return ["#fecaca"];
+    }
+
+    if (status === "Nearly Full") {
+      return ["#fde68a"];
+    }
+
+    return ["#bbf7d0"];
+  });
+
+  range.setBackgrounds(backgrounds);
+}
+
 function outputJson_(payload) {
   return ContentService
     .createTextOutput(JSON.stringify(payload))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function outputJsonOrJsonp_(payload, callbackName) {
+  if (isValidJsonpCallback_(callbackName)) {
+    return ContentService
+      .createTextOutput(callbackName + "(" + JSON.stringify(payload) + ");")
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+
+  return outputJson_(payload);
+}
+
+function isValidJsonpCallback_(callbackName) {
+  return Boolean(callbackName) && /^[A-Za-z_$][0-9A-Za-z_$.]*$/.test(callbackName);
+}
+
+function rebuildAdminReports() {
+  refreshReportingSheets_();
 }
