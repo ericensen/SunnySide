@@ -347,17 +347,44 @@ h3 {
 }
 
 .camp-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
   border-radius: 28px;
   overflow: hidden;
+}
+
+.camp-card-link {
+  text-decoration: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.camp-card-link:hover,
+.camp-card-link:focus-visible {
+  transform: translateY(-4px);
+  box-shadow: 0 28px 60px rgba(24, 49, 83, 0.18);
+}
+
+.camp-card-link:focus-visible {
+  outline: 3px solid rgba(13, 138, 223, 0.28);
+  outline-offset: 4px;
 }
 
 .camp-card-image {
   aspect-ratio: 4 / 3;
   background: linear-gradient(135deg, var(--camp-a), var(--camp-b));
-  padding: 1rem;
+  overflow: hidden;
+}
+
+.camp-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
 }
 
 .camp-card-body {
+  display: flex;
+  flex-direction: column;
   padding: 1.2rem;
 }
 
@@ -376,8 +403,14 @@ h3 {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  margin-top: auto;
   color: var(--deep-sky);
   font-weight: 800;
+}
+
+.camp-card-link:hover .card-link,
+.camp-card-link:focus-visible .card-link {
+  text-decoration: underline;
 }
 
 .three-up {

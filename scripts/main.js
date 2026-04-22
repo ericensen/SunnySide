@@ -9,7 +9,7 @@
   grid.innerHTML = data.camps
     .map(function (camp) {
       return `
-        <article class="camp-card" style="--camp-a:${camp.colors[0]}; --camp-b:${camp.colors[1]};">
+        <a class="camp-card camp-card-link" href="${data.campUrl(camp.slug)}" style="--camp-a:${camp.colors[0]}; --camp-b:${camp.colors[1]};" aria-label="See details for ${camp.title}">
           <div class="camp-card-image">
             <img src="${camp.image}" alt="${camp.imageAlt}">
           </div>
@@ -20,9 +20,9 @@
             </div>
             <h3>${camp.title}</h3>
             <p>${camp.blurb}</p>
-            <a class="card-link" href="${data.campUrl(camp.slug)}">See camp details</a>
+            <span class="card-link">See camp details</span>
           </div>
-        </article>
+        </a>
       `;
     })
     .join("");
