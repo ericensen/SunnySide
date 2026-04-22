@@ -16,7 +16,7 @@
           <div class="camp-card-body">
             <div class="camp-card-meta">
               <span>${camp.shortDate}</span>
-              <span>${data.money(data.pricePerKid)}</span>
+              <span>Only ${data.money(data.pricePerKid)}!</span>
             </div>
             <h3>${camp.title}</h3>
             <p>${camp.blurb}</p>

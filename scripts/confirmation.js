@@ -17,7 +17,7 @@
     "";
 
   updateReferenceField("[data-registration-id]", registrationId || "Not found");
-  updateReferenceField("[data-session-id]", checkoutSessionId || "Not found");
+  updateReferenceField("[data-payment-status]", checkoutSessionId ? "Received" : "Pending");
   updateReferenceField(
     "[data-parent-email]",
     (pendingRegistration && pendingRegistration.email) || "Not found"
@@ -31,7 +31,7 @@
 
   if (!checkoutSessionId) {
     showMessage(
-      "<strong>Stripe did not send a checkout session ID back to this page.</strong><p>Set your Payment Link to redirect here after payment using <code>confirmation.html?session_id={CHECKOUT_SESSION_ID}</code>.</p>",
+      "<strong>We could not finish your payment confirmation on this page.</strong><p>Please keep your email receipt handy and contact SunnySide if you need help confirming your camp spots.</p>",
       false
     );
     return;
@@ -39,7 +39,7 @@
 
   if (!config.registrationWebhook) {
     showMessage(
-      "<strong>Your Stripe payment appears complete, but registration reconciliation is not configured yet.</strong><p>Add your Apps Script web app URL to <code>registrationWebhook</code> in <code>scripts/site-config.js</code> so this page can confirm payment automatically.</p>",
+      "<strong>Your payment went through, but we could not finish the online confirmation step.</strong><p>Please keep your payment receipt for your records and contact SunnySide if you have any questions.</p>",
       false
     );
     return;
@@ -56,19 +56,19 @@
     if (queued) {
       markPendingRegistration(checkoutSessionId);
       showMessage(
-        "<strong>Payment confirmation queued.</strong><p>We sent your Stripe checkout session for reconciliation. Your registration sheet can now be updated with the paid status.</p>",
+        "<strong>Your payment has been received.</strong><p>Your registration is being finalized now. You are all set for your selected camp day${pendingRegistration && pendingRegistration.seatCount === 1 ? "" : "s"}.</p>",
         true
       );
       return;
     }
 
     showMessage(
-      "<strong>We could not queue the confirmation request from this browser.</strong><p>Please keep your Stripe receipt and registration ID handy in case SunnySide needs to confirm payment manually.</p>",
+      "<strong>We could not finish the final confirmation step from this browser.</strong><p>Please keep your receipt and registration ID handy just in case SunnySide needs to double-check your payment.</p>",
       false
     );
   } catch (error) {
     showMessage(
-      "<strong>We could not send your confirmation to the registration tracker.</strong><p>Please keep your Stripe receipt and contact SunnySide with your registration ID if needed.</p>",
+      "<strong>We could not finish your confirmation automatically.</strong><p>Please keep your receipt and registration ID handy and contact SunnySide if needed.</p>",
       false
     );
   }

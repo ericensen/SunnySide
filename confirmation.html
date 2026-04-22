@@ -6,7 +6,7 @@
   <title>SunnySide Payment Confirmation</title>
   <meta
     name="description"
-    content="SunnySide Summer Camp payment confirmation and registration reconciliation."
+    content="SunnySide Summer Camp payment confirmation page."
   >
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,8 +38,8 @@
           <p class="eyebrow">Payment Confirmation</p>
           <h1>Thanks for completing your payment.</h1>
           <p class="hero-text">
-            This page helps us match your Stripe payment back to your registration
-            so your camp spots can be marked paid.
+            Your registration and payment are being matched so your camp spots are
+            fully confirmed.
           </p>
         </div>
       </section>
@@ -50,12 +50,12 @@
             <div class="section-heading compact">
               <div>
                 <p class="eyebrow">Confirmation Status</p>
-                <h2>We are checking your registration.</h2>
+                <h2>We are finishing your confirmation.</h2>
               </div>
             </div>
             <div class="status-box" id="confirmation-status" role="status" aria-live="polite">
               <strong>Waiting for payment details...</strong>
-              <p>This page needs the Stripe checkout session ID to reconcile your payment.</p>
+              <p>Please keep this page open for a moment while we finish confirming your payment.</p>
             </div>
           </div>
 
@@ -63,12 +63,11 @@
             <div class="section-heading compact">
               <div>
                 <p class="eyebrow">What Happens Next</p>
-                <h2>After reconciliation</h2>
+                <h2>You are almost done</h2>
               </div>
             </div>
             <p class="form-note">
-              Once the payment is matched, the registration sheet can show that this
-              family has paid and which Stripe checkout session was used.
+              Once your payment is confirmed, your camp registration is all set.
             </p>
           </div>
         </section>
@@ -82,8 +81,8 @@
               <strong data-registration-id>Pending</strong>
             </div>
             <div>
-              <span>Checkout session</span>
-              <strong data-session-id>Pending</strong>
+              <span>Payment status</span>
+              <strong data-payment-status>Pending</strong>
             </div>
             <div>
               <span>Parent email</span>
@@ -105,7 +104,7 @@
       </div>
       <div class="footer-meta">
         <a href="index.html">Home</a>
-        <a href="SETUP.md">Setup Notes</a>
+        <a href="index.html#lineup">Camp Lineup</a>
       </div>
     </footer>
   </div>

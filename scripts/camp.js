@@ -19,8 +19,8 @@
         <h1>${camp.title}</h1>
         <p class="hero-text">${camp.description}</p>
         <div class="camp-meta">
-          <span class="meta-pill">${data.money(data.pricePerKid)} per kid</span>
-          <span class="meta-pill">${data.maxOpenings} spots max</span>
+          <span class="meta-pill">Only ${data.money(data.pricePerKid)}!</span>
+          <span class="meta-pill">Limited availability. Book today!</span>
           <span class="meta-pill">Summer 2026</span>
         </div>
         <div class="hero-actions">
@@ -61,7 +61,7 @@
 
       <aside class="camp-sidebar">
         <p class="eyebrow">Quick Facts</p>
-        <h3>Included on this camp page</h3>
+        <h3>What families can look forward to</h3>
         <ul>
           ${camp.highlights
             .map(function (item) {
@@ -70,10 +70,10 @@
             .join("")}
         </ul>
         <p>
-          Parents can register one or more kids, choose multiple camps, sign the
-          waiver, and move into payment from the same checkout flow.
+          This camp day is designed to feel bright, welcoming, and easy to enjoy
+          from drop-off through pickup.
         </p>
-        <a class="button button-primary" href="${data.checkoutUrl(camp.slug)}">Reserve a Spot</a>
+        <a class="button button-primary" href="${data.checkoutUrl(camp.slug)}">Book Now</a>
       </aside>
     </section>
   `;

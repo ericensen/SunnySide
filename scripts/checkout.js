@@ -269,10 +269,8 @@
     const paymentMarkup = paymentLink
       ? `<p><a class="button button-primary" href="${paymentLink}" target="_blank" rel="noreferrer">Open Payment Link</a></p>
          <p>Pay for <strong>${seatCount}</strong> camp seat${seatCount === 1 ? "" : "s"} in Stripe.</p>
-         <p>This payment link includes your registration ID for reconciliation after payment.</p>
-         <p>If you need to change children or camp selections, return to this form instead of changing payment details inside Stripe.</p>`
-      : `<p>No Stripe link is configured yet. Add one in <strong>scripts/site-config.js</strong>.</p>
-         <p>${config.paymentNote || ""}</p>`;
+         <p>If you need to change children or camp selections, return to this form before completing payment.</p>`
+      : `<p>Payment is not available at the moment. Please try again soon.</p>`;
 
     showStatus(
       `<strong>Registration saved.</strong>
