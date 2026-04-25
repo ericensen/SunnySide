@@ -28,6 +28,14 @@
       ? data.money(pendingRegistration.totalDue)
       : "Not found"
   );
+  updateReferenceField("[data-camp-address]", config.campAddress || "Not provided");
+  updateReferenceField("[data-contact-email]", config.contactEmail || "Not provided");
+  updateReferenceField("[data-contact-phone]", config.contactPhone || "Not provided");
+  updateReferenceField(
+    "[data-camp-schedule]",
+    config.campScheduleNote || "Camp schedule details will be shared before your camp day."
+  );
+  renderSelectedCamps();
 
   if (!checkoutSessionId) {
     showMessage(
@@ -111,6 +119,28 @@
         paymentStatus: paymentStatus || pendingRegistration.paymentStatus || "pending"
       })
     );
+  }
+
+  function renderSelectedCamps() {
+    const selectedCamps = document.querySelector("[data-selected-camps]");
+    const camps = pendingRegistration && Array.isArray(pendingRegistration.camps) ? pendingRegistration.camps : [];
+
+    if (!selectedCamps) {
+      return;
+    }
+
+    selectedCamps.innerHTML = camps.length
+      ? camps
+          .map(function (camp) {
+            return `
+              <div class="summary-item">
+                <strong>${camp.title}</strong>
+                <p>${camp.shortDate}</p>
+              </div>
+            `;
+          })
+          .join("")
+      : "<p>Your selected camp dates will appear here once your registration is saved in this browser.</p>";
   }
 
   function confirmPayment(sessionId, targetRegistrationId) {

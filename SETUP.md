@@ -105,6 +105,19 @@ Once the Apps Script code is updated and redeployed, it will automatically maint
 
 These report tabs rebuild automatically whenever a registration is submitted or a payment is reconciled.
 
+### Capacity tracking
+
+The site now reads live camp capacity from the Google Apps Script endpoint and marks camp days as sold out once they reach the internal 20-seat cap.
+
+- Sold-out camps show `Sold Out` on the homepage and camp detail page.
+- Sold-out camps are disabled on the checkout form.
+- The Apps Script registration endpoint also rejects new registrations that would exceed the 20-seat cap for a camp day.
+
+Important note:
+
+- Because this is still a lightweight static-site setup, availability checks are strongest when the Google Apps Script webhook is online and current.
+- For a fully transactional production setup with strict race-condition protection, you would eventually want a dedicated backend or booking system.
+
 ### Payment reconciliation setup
 
 The checkout flow now sends a `client_reference_id` into Stripe using the registration ID, and the site includes a `confirmation.html` page that can send the completed Stripe checkout session back to your Apps Script endpoint.

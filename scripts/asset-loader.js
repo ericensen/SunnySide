@@ -1,5 +1,5 @@
 (function () {
-  const VERSION = "2026-04-21-2";
+  const VERSION = "2026-04-24-1";
   const currentScript = document.currentScript;
   const requestedGroups = (currentScript && currentScript.getAttribute("data-assets") || "")
     .split(",")
@@ -11,7 +11,8 @@
     styles: [{ type: "style", path: "styles.css" }],
     common: [
       { type: "script", path: "scripts/site-config.js" },
-      { type: "script", path: "scripts/camp-data.js" }
+      { type: "script", path: "scripts/camp-data.js" },
+      { type: "script", path: "scripts/capacity.js" }
     ],
     main: [{ type: "script", path: "scripts/main.js" }],
     camp: [{ type: "script", path: "scripts/camp.js" }],

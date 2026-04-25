@@ -44,6 +44,10 @@ function doGet(e) {
     return handlePaymentConfirmationRequest_(e);
   }
 
+  if (action === "capacity") {
+    return handleCapacityRequest_(e);
+  }
+
   if (action === "status") {
     return handleStatusRequest_(e);
   }
@@ -77,6 +81,35 @@ function handleRegistrationSubmission_(payload) {
   const kids = Array.isArray(payload.kids) ? payload.kids : [];
   const rows = [];
   const timestamp = payload.submittedAt || new Date().toISOString();
+  const capacityMap = buildCampCapacityMap_(getRegistrationObjects_(context));
+  const requestedSeatsPerCamp = kids.length;
+  const soldOutCamps = camps.filter(function (camp) {
+    const status = getCampCapacityStatus_(capacityMap, camp.slug || "");
+    return requestedSeatsPerCamp > status.remainingSpots;
+  });
+
+  if (!camps.length || !kids.length) {
+    return outputJson_({
+      ok: false,
+      error: "At least one camp and one child are required."
+    });
+  }
+
+  if (soldOutCamps.length) {
+    return outputJson_({
+      ok: false,
+      error:
+        "One or more selected camps are sold out: " +
+        soldOutCamps
+          .map(function (camp) {
+            return camp.title || camp.slug || "Selected camp";
+          })
+          .join(", "),
+      soldOutCamps: soldOutCamps.map(function (camp) {
+        return camp.slug || "";
+      })
+    });
+  }
 
   camps.forEach(function (camp) {
     kids.forEach(function (kid) {
@@ -264,6 +297,18 @@ function handleStatusRequest_(e) {
   }, callback);
 }
 
+function handleCapacityRequest_(e) {
+  const callback = getParameter_(e, "callback");
+  const context = getSheetContext_();
+  const capacity = buildCampCapacityMap_(getRegistrationObjects_(context));
+
+  return outputJsonOrJsonp_({
+    ok: true,
+    defaultCapacity: DEFAULT_CAMP_CAPACITY,
+    capacity: capacity
+  }, callback);
+}
+
 function reconcilePayment_(registrationId, session, source) {
   const context = getSheetContext_();
   const matches = findRegistrationRows_(context, registrationId);
@@ -424,50 +469,8 @@ function rebuildCampSummarySheet_(spreadsheet, registrations) {
     "Remaining Spots",
     "Status"
   ];
-  const summaryByCamp = {};
+  const summaryByCamp = buildCampCapacityMap_(registrations);
   const rows = [];
-
-  registrations.forEach(function (registration) {
-    const campKey = [registration["Camp Date"], registration["Camp Title"]].join(" | ");
-
-    if (!summaryByCamp[campKey]) {
-      summaryByCamp[campKey] = {
-        title: registration["Camp Title"] || "",
-        date: registration["Camp Date"] || "",
-        registeredSeats: 0,
-        paidSeats: 0,
-        followUpSeats: 0,
-        families: {},
-        paidRevenue: 0,
-        expectedRevenue: 0
-      };
-    }
-
-    const summary = summaryByCamp[campKey];
-    const paymentStatus = String(registration["Payment Status"] || "").toLowerCase();
-    const expectedRevenue = parseNumber_(registration["Total Due"]);
-    const paidRevenue = parseNumber_(registration["Stripe Amount Total"]);
-
-    summary.registeredSeats += 1;
-
-    if (registration["Registration ID"]) {
-      summary.families[registration["Registration ID"]] = true;
-    }
-
-    if (paymentStatus === "paid") {
-      summary.paidSeats += 1;
-    } else {
-      summary.followUpSeats += 1;
-    }
-
-    if (expectedRevenue) {
-      summary.expectedRevenue += expectedRevenue / Math.max(parseNumber_(registration["Seat Count"]), 1);
-    }
-
-    if (paidRevenue) {
-      summary.paidRevenue += paidRevenue / Math.max(parseNumber_(registration["Seat Count"]), 1);
-    }
-  });
 
   Object.keys(summaryByCamp)
     .sort(function (left, right) {
@@ -486,7 +489,6 @@ function rebuildCampSummarySheet_(spreadsheet, registrations) {
     })
     .forEach(function (campKey) {
       const summary = summaryByCamp[campKey];
-      const remainingSpots = Math.max(DEFAULT_CAMP_CAPACITY - summary.registeredSeats, 0);
 
       rows.push([
         summary.title,
@@ -497,8 +499,8 @@ function rebuildCampSummarySheet_(spreadsheet, registrations) {
         Object.keys(summary.families).length,
         roundCurrency_(summary.paidRevenue),
         roundCurrency_(summary.expectedRevenue),
-        remainingSpots,
-        getAvailabilityStatus_(remainingSpots)
+        summary.remainingSpots,
+        summary.status
       ]);
     });
 
@@ -591,6 +593,84 @@ function rebuildPaymentFollowUpSheet_(spreadsheet, registrations) {
 
   writeReportSheet_(sheet, headers, rows);
   formatPaymentFollowUpSheet_(sheet, rows.length);
+}
+
+function buildCampCapacityMap_(registrations) {
+  const summaryByCamp = {};
+
+  registrations.forEach(function (registration) {
+    const slug = registration["Camp Slug"] || "";
+    const campKey = slug || [registration["Camp Date"], registration["Camp Title"]].join(" | ");
+
+    if (!summaryByCamp[campKey]) {
+      summaryByCamp[campKey] = {
+        slug: slug,
+        title: registration["Camp Title"] || "",
+        date: registration["Camp Date"] || "",
+        registeredSeats: 0,
+        paidSeats: 0,
+        followUpSeats: 0,
+        families: {},
+        paidRevenue: 0,
+        expectedRevenue: 0,
+        remainingSpots: DEFAULT_CAMP_CAPACITY,
+        soldOut: false,
+        status: "Open"
+      };
+    }
+
+    const summary = summaryByCamp[campKey];
+    const paymentStatus = String(registration["Payment Status"] || "").toLowerCase();
+    const expectedRevenue = parseNumber_(registration["Total Due"]);
+    const paidRevenue = parseNumber_(registration["Stripe Amount Total"]);
+
+    summary.registeredSeats += 1;
+
+    if (registration["Registration ID"]) {
+      summary.families[registration["Registration ID"]] = true;
+    }
+
+    if (paymentStatus === "paid") {
+      summary.paidSeats += 1;
+    } else {
+      summary.followUpSeats += 1;
+    }
+
+    if (expectedRevenue) {
+      summary.expectedRevenue += expectedRevenue / Math.max(parseNumber_(registration["Seat Count"]), 1);
+    }
+
+    if (paidRevenue) {
+      summary.paidRevenue += paidRevenue / Math.max(parseNumber_(registration["Seat Count"]), 1);
+    }
+  });
+
+  Object.keys(summaryByCamp).forEach(function (campKey) {
+    const summary = summaryByCamp[campKey];
+
+    summary.remainingSpots = Math.max(DEFAULT_CAMP_CAPACITY - summary.registeredSeats, 0);
+    summary.soldOut = summary.remainingSpots <= 0;
+    summary.status = getAvailabilityStatus_(summary.remainingSpots);
+  });
+
+  return summaryByCamp;
+}
+
+function getCampCapacityStatus_(capacityMap, slug) {
+  return capacityMap[slug] || {
+    slug: slug,
+    title: "",
+    date: "",
+    registeredSeats: 0,
+    paidSeats: 0,
+    followUpSeats: 0,
+    families: {},
+    paidRevenue: 0,
+    expectedRevenue: 0,
+    remainingSpots: DEFAULT_CAMP_CAPACITY,
+    soldOut: false,
+    status: "Open"
+  };
 }
 
 function ensureHeaders_(sheet) {

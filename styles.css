@@ -157,6 +157,12 @@ h3 {
   box-shadow: 0 12px 30px rgba(24, 49, 83, 0.08);
 }
 
+.button-disabled {
+  cursor: not-allowed;
+  opacity: 0.78;
+  pointer-events: none;
+}
+
 .button-small {
   padding: 0.65rem 1rem;
   font-size: 0.95rem;
@@ -351,6 +357,7 @@ h3 {
   grid-template-rows: auto 1fr;
   border-radius: 28px;
   overflow: hidden;
+  position: relative;
 }
 
 .camp-card-link {
@@ -411,6 +418,46 @@ h3 {
 .camp-card-link:hover .card-link,
 .camp-card-link:focus-visible .card-link {
   text-decoration: underline;
+}
+
+.camp-card.sold-out,
+.camp-hero.sold-out {
+  position: relative;
+}
+
+.camp-title-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.sold-out-ribbon {
+  position: absolute;
+  top: -0.45rem;
+  right: -2.9rem;
+  transform: rotate(18deg);
+  background: linear-gradient(135deg, #ff7d57, #ff4d6d);
+  color: #fff;
+  padding: 0.45rem 3.2rem;
+  font-family: "Fredoka", sans-serif;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 12px 24px rgba(255, 77, 109, 0.22);
+  z-index: 2;
+}
+
+.sold-out-badge {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  margin-top: 0.2rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(255, 77, 109, 0.12);
+  color: #c33455;
+  font-family: "Fredoka", sans-serif;
+  font-size: 0.92rem;
 }
 
 .three-up {
@@ -602,6 +649,27 @@ textarea:focus {
   color: var(--muted);
 }
 
+.camp-option-status {
+  display: inline-flex;
+  margin-top: 0.2rem;
+  font-style: normal;
+  font-weight: 800;
+  color: var(--deep-sky);
+}
+
+.sold-out-option {
+  border-color: rgba(255, 77, 109, 0.24);
+  background: rgba(255, 244, 246, 0.9);
+}
+
+.sold-out-option strong {
+  color: #b83252;
+}
+
+.sold-out-text {
+  color: #c33455;
+}
+
 .camper-card,
 .waiver-box,
 .status-box {
@@ -677,6 +745,81 @@ textarea:focus {
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.7);
   border: 1px solid var(--border);
+}
+
+.details-card,
+.legal-card,
+.contact-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.details-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.details-list div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.details-list span,
+.selected-camps-card > span,
+.policy-list strong,
+.contact-list strong {
+  color: var(--muted);
+}
+
+.selected-camps-card {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.full-width-button {
+  width: 100%;
+}
+
+.legal-layout {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 1.6rem;
+}
+
+.legal-card h2,
+.contact-card h2 {
+  margin-bottom: 0.7rem;
+}
+
+.policy-list,
+.contact-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.policy-list article,
+.contact-list article {
+  padding: 1rem;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--border);
+}
+
+.contact-list p,
+.policy-list p,
+.policy-list li {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.policy-list ul {
+  margin: 0.45rem 0 0;
+  padding-left: 1.2rem;
 }
 
 .summary-item strong,

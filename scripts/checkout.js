@@ -1,6 +1,7 @@
 (function () {
   const data = window.SUNNYSIDE_DATA;
   const config = window.SUNNYSIDE_CONFIG || {};
+  const capacity = window.SUNNYSIDE_CAPACITY;
   const form = document.getElementById("checkout-form");
 
   if (!form) {
@@ -12,6 +13,7 @@
   const camperTemplate = document.getElementById("camper-template");
   const addCamperButton = document.querySelector("[data-add-camper]");
   const statusBox = document.getElementById("status-box");
+  const submitButton = form.querySelector('button[type="submit"]');
   const summaryFields = {
     camps: document.querySelector("[data-summary-camps]"),
     kids: document.querySelector("[data-summary-kids]"),
@@ -29,18 +31,34 @@
     return new Date(today.getTime() - offset).toISOString().slice(0, 10);
   }
 
-  function renderCampPicker() {
+  function renderCampPicker(selectedSlugs) {
+    const selectedLookup = Array.isArray(selectedSlugs)
+      ? selectedSlugs.reduce(function (lookup, slug) {
+          lookup[slug] = true;
+          return lookup;
+        }, {})
+      : {};
+
     campPicker.innerHTML = data.camps
       .map(function (camp) {
-        const checked = camp.slug === preselectedCamp ? "checked" : "";
+        const availability = capacity ? capacity.getCampStatus(camp.slug) : { soldOut: false };
+        const shouldCheck =
+          (selectedLookup[camp.slug] || (!selectedSlugs && camp.slug === preselectedCamp)) &&
+          !availability.soldOut;
+        const checked = shouldCheck ? "checked" : "";
+        const disabled = availability.soldOut ? "disabled" : "";
+        const availabilityMarkup = availability.soldOut
+          ? '<em class="camp-option-status sold-out-text">Sold Out</em>'
+          : '<em class="camp-option-status">Open</em>';
 
         return `
-          <label class="camp-option">
-            <input type="checkbox" name="selectedCamp" value="${camp.slug}" ${checked}>
+          <label class="camp-option${availability.soldOut ? " sold-out-option" : ""}">
+            <input type="checkbox" name="selectedCamp" value="${camp.slug}" ${checked} ${disabled}>
             <span>
               <strong>${camp.title}</strong>
               <small>${camp.shortDate}</small>
               <p>${camp.blurb}</p>
+              ${availabilityMarkup}
             </span>
           </label>
         `;
@@ -134,7 +152,8 @@
         email: payload.email,
         seatCount: payload.seatCount,
         totalDue: payload.totalDue,
-        submittedAt: payload.submittedAt
+        submittedAt: payload.submittedAt,
+        camps: payload.camps
       })
     );
   }
@@ -179,6 +198,11 @@
     statusBox.innerHTML = messageHtml;
   }
 
+  function setSubmittingState(isSubmitting) {
+    submitButton.disabled = Boolean(isSubmitting);
+    submitButton.textContent = isSubmitting ? "Checking Availability..." : "Save Registration and Continue";
+  }
+
   function buildPaymentLink(payload) {
     if (!config.stripePaymentLink) {
       return "";
@@ -217,82 +241,132 @@
     if (!form.reportValidity()) {
       return;
     }
-
-    const selectedCamps = getSelectedCamps();
-    const children = getChildren().filter(function (kid) {
-      return kid.name && kid.age;
-    });
-
-    if (!selectedCamps.length) {
-      showStatus("<strong>Please select at least one camp.</strong>", false);
-      return;
-    }
-
-    if (!children.length) {
-      showStatus("<strong>Please add at least one child with a name and age.</strong>", false);
-      return;
-    }
-
-    const seatCount = selectedCamps.length * children.length;
-    const totalDue = seatCount * data.pricePerKid;
-    const payload = {
-      registrationId: createRegistrationId(),
-      submittedAt: new Date().toISOString(),
-      parentName: form.parentName.value.trim(),
-      email: form.email.value.trim(),
-      phone: form.phone.value.trim(),
-      emergencyContact: form.emergencyContact.value.trim(),
-      emergencyPhone: form.emergencyPhone.value.trim(),
-      familyNotes: form.familyNotes.value.trim(),
-      waiverAccepted: form.waiverAccepted.checked,
-      signatureName: form.signatureName.value.trim(),
-      signatureDate: form.signatureDate.value,
-      kids: children,
-      camps: selectedCamps.map(function (camp) {
-        return {
-          slug: camp.slug,
-          title: camp.title,
-          shortDate: camp.shortDate
-        };
-      }),
-      seatCount: seatCount,
-      totalDue: totalDue,
-      paymentStatus: "pending"
-    };
-
-    try {
-      saveLocalRegistration(payload);
-      savePendingRegistration(payload);
-    } catch (error) {
-      showStatus(
-        "<strong>Registration details could not be saved in this browser.</strong><p>Please keep this page open and complete payment after you set up your live webhook and payment link.</p>",
-        false
-      );
-      return;
-    }
-
-    sendToWebhook(payload);
-
-    const paymentLink = buildPaymentLink(payload);
-    const paymentMarkup = paymentLink
-      ? `<p><a class="button button-primary" href="${paymentLink}" target="_blank" rel="noreferrer">Open Payment Link</a></p>
-         <p>Pay for <strong>${seatCount}</strong> camp seat${seatCount === 1 ? "" : "s"} in Stripe.</p>
-         <p>If you need to change children or camp selections, return to this form before completing payment.</p>`
-      : `<p>Payment is not available at the moment. Please try again soon.</p>`;
-
-    showStatus(
-      `<strong>Registration saved.</strong>
-       <p>Saved ${children.length} child${children.length === 1 ? "" : "ren"} for ${selectedCamps.length} camp${selectedCamps.length === 1 ? "" : "s"}.</p>
-       <p>Total due: <strong>${data.money(totalDue)}</strong></p>
-       ${paymentMarkup}`,
-      true
+    setSubmittingState(true);
+    const currentSelections = Array.from(form.querySelectorAll('input[name="selectedCamp"]:checked')).map(
+      function (input) {
+        return input.value;
+      }
     );
 
-    window.location.hash = "summary-card";
+    const proceed = function () {
+      const selectedCamps = getSelectedCamps();
+      const children = getChildren().filter(function (kid) {
+        return kid.name && kid.age;
+      });
+
+      if (!selectedCamps.length) {
+        setSubmittingState(false);
+        showStatus("<strong>Please select at least one camp.</strong>", false);
+        return;
+      }
+
+      if (!children.length) {
+        setSubmittingState(false);
+        showStatus("<strong>Please add at least one child with a name and age.</strong>", false);
+        return;
+      }
+
+      const soldOutSelections = selectedCamps.filter(function (camp) {
+        const availability = capacity ? capacity.getCampStatus(camp.slug) : { soldOut: false };
+        return availability.soldOut || availability.remainingSpots < children.length;
+      });
+
+      if (soldOutSelections.length) {
+        setSubmittingState(false);
+        renderCampPicker(currentSelections);
+        updateSummary();
+        showStatus(
+          "<strong>One or more selected camps are sold out.</strong><p>Please remove sold out camp days before continuing.</p>",
+          false
+        );
+        return;
+      }
+
+      const seatCount = selectedCamps.length * children.length;
+      const totalDue = seatCount * data.pricePerKid;
+      const payload = {
+        registrationId: createRegistrationId(),
+        submittedAt: new Date().toISOString(),
+        parentName: form.parentName.value.trim(),
+        email: form.email.value.trim(),
+        phone: form.phone.value.trim(),
+        emergencyContact: form.emergencyContact.value.trim(),
+        emergencyPhone: form.emergencyPhone.value.trim(),
+        familyNotes: form.familyNotes.value.trim(),
+        waiverAccepted: form.waiverAccepted.checked,
+        signatureName: form.signatureName.value.trim(),
+        signatureDate: form.signatureDate.value,
+        kids: children,
+        camps: selectedCamps.map(function (camp) {
+          return {
+            slug: camp.slug,
+            title: camp.title,
+            shortDate: camp.shortDate
+          };
+        }),
+        seatCount: seatCount,
+        totalDue: totalDue,
+        paymentStatus: "pending"
+      };
+
+      try {
+        saveLocalRegistration(payload);
+        savePendingRegistration(payload);
+      } catch (error) {
+        setSubmittingState(false);
+        showStatus(
+          "<strong>Registration details could not be saved in this browser.</strong><p>Please keep this page open and complete payment after you set up your live webhook and payment link.</p>",
+          false
+        );
+        return;
+      }
+
+      sendToWebhook(payload);
+
+      const paymentLink = buildPaymentLink(payload);
+      const paymentMarkup = paymentLink
+        ? `<p><a class="button button-primary" href="${paymentLink}" target="_blank" rel="noreferrer">Open Payment Link</a></p>
+           <p>Pay for <strong>${seatCount}</strong> camp seat${seatCount === 1 ? "" : "s"} in Stripe.</p>
+           <p>If you need to change children or camp selections, return to this form before completing payment.</p>`
+        : `<p>Payment is not available at the moment. Please try again soon.</p>`;
+
+      setSubmittingState(false);
+      showStatus(
+        `<strong>Registration saved.</strong>
+         <p>Saved ${children.length} child${children.length === 1 ? "" : "ren"} for ${selectedCamps.length} camp${selectedCamps.length === 1 ? "" : "s"}.</p>
+         <p>Total due: <strong>${data.money(totalDue)}</strong></p>
+         ${paymentMarkup}`,
+        true
+      );
+
+      window.location.hash = "summary-card";
+    };
+
+    if (capacity) {
+      capacity.load(true).then(function () {
+        renderCampPicker(currentSelections);
+        updateSummary();
+        proceed();
+      });
+      return;
+    }
+
+    proceed();
   });
 
   renderCampPicker();
   addCamperCard();
   form.signatureDate.value = getLocalToday();
   updateSummary();
+
+  if (capacity) {
+    capacity.load().then(function () {
+      renderCampPicker(
+        Array.from(form.querySelectorAll('input[name="selectedCamp"]:checked')).map(function (input) {
+          return input.value;
+        })
+      );
+      updateSummary();
+    });
+  }
 })();
