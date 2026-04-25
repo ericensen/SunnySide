@@ -129,13 +129,14 @@ When Stripe redirects to that page after payment, the site sends the checkout se
 `apps-script/Code.gs` also includes optional support for `checkout.session.completed` events posted directly from Stripe.
 
 - This version uses a lightweight query-string token, not Stripe signature verification.
-- Add a script property named `SUNNYSIDE_INTEGRATION_TOKEN` if you want to use it.
+- Add a script property named `SUNNYSIDE_INTEGRATION_TOKEN` before using this webhook path.
 - Configure the webhook URL in Stripe as:
 
 ```text
 YOUR_APPS_SCRIPT_WEB_APP_URL?token=YOUR_TOKEN_HERE
 ```
 
+- If `SUNNYSIDE_INTEGRATION_TOKEN` is missing, the webhook request will now be rejected.
 - For a full production launch, move this webhook handling to a server that can verify Stripe webhook signatures.
 
 ## Notes

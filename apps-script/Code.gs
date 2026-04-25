@@ -62,10 +62,6 @@ function doPost(e) {
       return handleStripeEvent_(e, payload);
     }
 
-    if (payload.eventType === "payment_confirmation") {
-      return handlePaymentConfirmation_(payload);
-    }
-
     return handleRegistrationSubmission_(payload);
   } catch (error) {
     return outputJson_({
@@ -106,7 +102,7 @@ function handleRegistrationSubmission_(payload) {
             "Signature Date": payload.signatureDate || "",
             "Seat Count": payload.seatCount || "",
             "Total Due": payload.totalDue || "",
-            "Payment Status": payload.paymentStatus || "pending",
+            "Payment Status": "pending",
             "Stripe Checkout Session ID": "",
             "Stripe Payment Intent ID": "",
             "Stripe Amount Total": "",
@@ -136,10 +132,6 @@ function handleRegistrationSubmission_(payload) {
     rowsWritten: rows.length,
     registrationId: payload.registrationId || ""
   });
-}
-
-function handlePaymentConfirmation_(payload) {
-  return outputJson_(confirmPayment_(payload, "confirmation_page"));
 }
 
 function handlePaymentConfirmationRequest_(e) {
@@ -187,7 +179,14 @@ function handleStripeEvent_(e, payload) {
   const expectedToken = getScriptProperty_(INTEGRATION_TOKEN_PROPERTY);
   const receivedToken = getParameter_(e, "token");
 
-  if (expectedToken && expectedToken !== receivedToken) {
+  if (!expectedToken) {
+    return outputJson_({
+      ok: false,
+      error: "Missing SUNNYSIDE_INTEGRATION_TOKEN script property."
+    });
+  }
+
+  if (expectedToken !== receivedToken) {
     return outputJson_({
       ok: false,
       error: "Invalid integration token."

@@ -139,6 +139,14 @@
     );
   }
 
+  function createRegistrationId() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return "SSC-" + window.crypto.randomUUID();
+    }
+
+    return "SSC-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
+  }
+
   function sendToWebhook(payload) {
     if (!config.registrationWebhook) {
       return;
@@ -228,7 +236,7 @@
     const seatCount = selectedCamps.length * children.length;
     const totalDue = seatCount * data.pricePerKid;
     const payload = {
-      registrationId: "SSC-" + Date.now(),
+      registrationId: createRegistrationId(),
       submittedAt: new Date().toISOString(),
       parentName: form.parentName.value.trim(),
       email: form.email.value.trim(),
