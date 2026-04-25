@@ -87,6 +87,19 @@ The easiest lightweight path is Google Apps Script plus Google Sheets.
 
 That gives you a spreadsheet-based registration log with each child, family notes, camp selection, and Stripe reconciliation fields.
 
+### Registration email notifications
+
+The Apps Script backend now sends two emails whenever a registration is saved:
+
+- a confirmation email to the parent or guardian listed on the registration
+- an admin notification email to `ericensen@gmail.com`
+
+These emails include the confirmation ID, contact details, selected camp days, registered children, seat count, and total due.
+
+Important note:
+
+- When you deploy or redeploy Apps Script after this update, Google may ask you to approve permission for the script to send email on your behalf.
+
 ### Google Sheet admin tabs
 
 Once the Apps Script code is updated and redeployed, it will automatically maintain three organizer-friendly tabs in the same spreadsheet:

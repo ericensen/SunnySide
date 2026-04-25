@@ -3,6 +3,10 @@ const SHEET_NAME = "Registrations";
 const CAMP_SUMMARY_SHEET_NAME = "Camp Summary";
 const PAYMENT_FOLLOW_UP_SHEET_NAME = "Payment Follow Up";
 const DEFAULT_CAMP_CAPACITY = 20;
+const ADMIN_NOTIFICATION_EMAIL = "ericensen@gmail.com";
+const CAMP_CONTACT_EMAIL = "ericensen@gmail.com";
+const CAMP_CONTACT_PHONE = "(801) 230-1068";
+const CAMP_ADDRESS = "551 W Cephus Road, Draper UT 80420";
 const STRIPE_SECRET_KEY_PROPERTY = "STRIPE_SECRET_KEY";
 const INTEGRATION_TOKEN_PROPERTY = "SUNNYSIDE_INTEGRATION_TOKEN";
 const REGISTRATION_HEADERS = [
@@ -159,6 +163,7 @@ function handleRegistrationSubmission_(payload) {
   }
 
   refreshReportingSheets_();
+  sendRegistrationEmailsSafely_(payload);
 
   return outputJson_({
     ok: true,
@@ -656,6 +661,320 @@ function buildCampCapacityMap_(registrations) {
   return summaryByCamp;
 }
 
+function sendRegistrationEmailsSafely_(payload) {
+  try {
+    sendRegistrationEmails_(payload);
+  } catch (error) {
+    Logger.log("Registration email failed: " + String(error && error.message ? error.message : error));
+  }
+}
+
+function sendRegistrationEmails_(payload) {
+  const registrationSummary = buildRegistrationSummary_(payload);
+  const adminEmail = ADMIN_NOTIFICATION_EMAIL;
+  const parentEmail = payload.email || "";
+  const parentSubject = "SunnySide Registration Received - " + registrationSummary.registrationId;
+  const adminSubject = "New SunnySide Registration - " + registrationSummary.registrationId;
+  const parentTextBody = buildParentEmailText_(registrationSummary);
+  const parentHtmlBody = buildParentEmailHtml_(registrationSummary);
+  const adminTextBody = buildAdminEmailText_(registrationSummary);
+  const adminHtmlBody = buildAdminEmailHtml_(registrationSummary);
+
+  if (parentEmail) {
+    MailApp.sendEmail({
+      to: parentEmail,
+      subject: parentSubject,
+      htmlBody: parentHtmlBody,
+      body: parentTextBody,
+      replyTo: CAMP_CONTACT_EMAIL,
+      name: "SunnySide Summer Camp"
+    });
+  }
+
+  if (adminEmail) {
+    MailApp.sendEmail({
+      to: adminEmail,
+      subject: adminSubject,
+      htmlBody: adminHtmlBody,
+      body: adminTextBody,
+      replyTo: parentEmail || CAMP_CONTACT_EMAIL,
+      name: "SunnySide Summer Camp"
+    });
+  }
+}
+
+function buildRegistrationSummary_(payload) {
+  const camps = Array.isArray(payload.camps) ? payload.camps : [];
+  const kids = Array.isArray(payload.kids) ? payload.kids : [];
+
+  return {
+    registrationId: payload.registrationId || "",
+    submittedAt: payload.submittedAt || new Date().toISOString(),
+    parentName: payload.parentName || "",
+    email: payload.email || "",
+    phone: payload.phone || "",
+    emergencyContact: payload.emergencyContact || "",
+    emergencyPhone: payload.emergencyPhone || "",
+    familyNotes: payload.familyNotes || "",
+    signatureName: payload.signatureName || "",
+    signatureDate: payload.signatureDate || "",
+    seatCount: parseNumber_(payload.seatCount),
+    totalDue: parseNumber_(payload.totalDue),
+    camps: camps.map(function (camp) {
+      return {
+        slug: camp.slug || "",
+        title: camp.title || "",
+        shortDate: camp.shortDate || ""
+      };
+    }),
+    kids: kids.map(function (kid) {
+      return {
+        name: kid.name || "",
+        age: kid.age || "",
+        notes: kid.notes || ""
+      };
+    })
+  };
+}
+
+function buildParentEmailText_(summary) {
+  const lines = [
+    "SunnySide Summer Camp Registration Received",
+    "",
+    "Hi " + (summary.parentName || "there") + ",",
+    "",
+    "Thanks for registering with SunnySide Summer Camp.",
+    "Your confirmation ID is " + summary.registrationId + ".",
+    "",
+    "Registration details:",
+    "Parent: " + summary.parentName,
+    "Email: " + summary.email,
+    "Phone: " + summary.phone,
+    "Emergency contact: " + summary.emergencyContact,
+    "Emergency phone: " + summary.emergencyPhone,
+    "Camp address: " + CAMP_ADDRESS,
+    "Camp contact email: " + CAMP_CONTACT_EMAIL,
+    "Camp contact phone: " + CAMP_CONTACT_PHONE,
+    "",
+    "Selected camp days:",
+    formatCampLines_(summary.camps),
+    "",
+    "Registered campers:",
+    formatKidLines_(summary.kids),
+    "",
+    "Seat count: " + summary.seatCount,
+    "Total due: " + moneyText_(summary.totalDue),
+    "",
+    summary.familyNotes ? "Family notes: " + summary.familyNotes : "Family notes: None provided",
+    "",
+    "Payment is confirmed separately after checkout. Please keep this email for your records.",
+    "",
+    "SunnySide Summer Camp"
+  ];
+
+  return lines.join("\n");
+}
+
+function buildParentEmailHtml_(summary) {
+  return (
+    "<h2>SunnySide Summer Camp Registration Received</h2>" +
+    "<p>Hi " +
+    escapeHtml_(summary.parentName || "there") +
+    ",</p>" +
+    "<p>Thanks for registering with SunnySide Summer Camp. Your confirmation ID is <strong>" +
+    escapeHtml_(summary.registrationId) +
+    "</strong>.</p>" +
+    "<h3>Registration details</h3>" +
+    "<ul>" +
+    "<li><strong>Parent:</strong> " +
+    escapeHtml_(summary.parentName) +
+    "</li>" +
+    "<li><strong>Email:</strong> " +
+    escapeHtml_(summary.email) +
+    "</li>" +
+    "<li><strong>Phone:</strong> " +
+    escapeHtml_(summary.phone) +
+    "</li>" +
+    "<li><strong>Emergency contact:</strong> " +
+    escapeHtml_(summary.emergencyContact) +
+    "</li>" +
+    "<li><strong>Emergency phone:</strong> " +
+    escapeHtml_(summary.emergencyPhone) +
+    "</li>" +
+    "<li><strong>Camp address:</strong> " +
+    escapeHtml_(CAMP_ADDRESS) +
+    "</li>" +
+    "<li><strong>Camp contact email:</strong> " +
+    escapeHtml_(CAMP_CONTACT_EMAIL) +
+    "</li>" +
+    "<li><strong>Camp contact phone:</strong> " +
+    escapeHtml_(CAMP_CONTACT_PHONE) +
+    "</li>" +
+    "<li><strong>Seat count:</strong> " +
+    escapeHtml_(String(summary.seatCount)) +
+    "</li>" +
+    "<li><strong>Total due:</strong> " +
+    escapeHtml_(moneyText_(summary.totalDue)) +
+    "</li>" +
+    "</ul>" +
+    "<h3>Selected camp days</h3>" +
+    formatCampListHtml_(summary.camps) +
+    "<h3>Registered campers</h3>" +
+    formatKidListHtml_(summary.kids) +
+    "<p><strong>Family notes:</strong> " +
+    escapeHtml_(summary.familyNotes || "None provided") +
+    "</p>" +
+    "<p>Payment is confirmed separately after checkout. Please keep this email for your records.</p>" +
+    "<p>SunnySide Summer Camp</p>"
+  );
+}
+
+function buildAdminEmailText_(summary) {
+  const lines = [
+    "New SunnySide Registration",
+    "",
+    "Confirmation ID: " + summary.registrationId,
+    "Submitted at: " + summary.submittedAt,
+    "",
+    "Parent details:",
+    "Name: " + summary.parentName,
+    "Email: " + summary.email,
+    "Phone: " + summary.phone,
+    "Emergency contact: " + summary.emergencyContact,
+    "Emergency phone: " + summary.emergencyPhone,
+    "",
+    "Selected camp days:",
+    formatCampLines_(summary.camps),
+    "",
+    "Registered campers:",
+    formatKidLines_(summary.kids),
+    "",
+    "Seat count: " + summary.seatCount,
+    "Total due: " + moneyText_(summary.totalDue),
+    summary.familyNotes ? "Family notes: " + summary.familyNotes : "Family notes: None provided",
+    "Signature: " + summary.signatureName,
+    "Signature date: " + summary.signatureDate
+  ];
+
+  return lines.join("\n");
+}
+
+function buildAdminEmailHtml_(summary) {
+  return (
+    "<h2>New SunnySide Registration</h2>" +
+    "<p><strong>Confirmation ID:</strong> " +
+    escapeHtml_(summary.registrationId) +
+    "<br><strong>Submitted at:</strong> " +
+    escapeHtml_(summary.submittedAt) +
+    "</p>" +
+    "<h3>Parent details</h3>" +
+    "<ul>" +
+    "<li><strong>Name:</strong> " +
+    escapeHtml_(summary.parentName) +
+    "</li>" +
+    "<li><strong>Email:</strong> " +
+    escapeHtml_(summary.email) +
+    "</li>" +
+    "<li><strong>Phone:</strong> " +
+    escapeHtml_(summary.phone) +
+    "</li>" +
+    "<li><strong>Emergency contact:</strong> " +
+    escapeHtml_(summary.emergencyContact) +
+    "</li>" +
+    "<li><strong>Emergency phone:</strong> " +
+    escapeHtml_(summary.emergencyPhone) +
+    "</li>" +
+    "<li><strong>Seat count:</strong> " +
+    escapeHtml_(String(summary.seatCount)) +
+    "</li>" +
+    "<li><strong>Total due:</strong> " +
+    escapeHtml_(moneyText_(summary.totalDue)) +
+    "</li>" +
+    "<li><strong>Signature:</strong> " +
+    escapeHtml_(summary.signatureName) +
+    "</li>" +
+    "<li><strong>Signature date:</strong> " +
+    escapeHtml_(summary.signatureDate) +
+    "</li>" +
+    "</ul>" +
+    "<h3>Selected camp days</h3>" +
+    formatCampListHtml_(summary.camps) +
+    "<h3>Registered campers</h3>" +
+    formatKidListHtml_(summary.kids) +
+    "<p><strong>Family notes:</strong> " +
+    escapeHtml_(summary.familyNotes || "None provided") +
+    "</p>"
+  );
+}
+
+function formatCampLines_(camps) {
+  if (!camps.length) {
+    return "- No camp days selected";
+  }
+
+  return camps
+    .map(function (camp) {
+      return "- " + (camp.title || "Camp day") + (camp.shortDate ? " (" + camp.shortDate + ")" : "");
+    })
+    .join("\n");
+}
+
+function formatKidLines_(kids) {
+  if (!kids.length) {
+    return "- No campers listed";
+  }
+
+  return kids
+    .map(function (kid) {
+      const notes = kid.notes ? " - Notes: " + kid.notes : "";
+      return "- " + (kid.name || "Camper") + (kid.age ? ", age " + kid.age : "") + notes;
+    })
+    .join("\n");
+}
+
+function formatCampListHtml_(camps) {
+  if (!camps.length) {
+    return "<p>No camp days selected.</p>";
+  }
+
+  return (
+    "<ul>" +
+    camps
+      .map(function (camp) {
+        return (
+          "<li>" +
+          escapeHtml_(camp.title || "Camp day") +
+          (camp.shortDate ? " (" + escapeHtml_(camp.shortDate) + ")" : "") +
+          "</li>"
+        );
+      })
+      .join("") +
+    "</ul>"
+  );
+}
+
+function formatKidListHtml_(kids) {
+  if (!kids.length) {
+    return "<p>No campers listed.</p>";
+  }
+
+  return (
+    "<ul>" +
+    kids
+      .map(function (kid) {
+        return (
+          "<li>" +
+          escapeHtml_(kid.name || "Camper") +
+          (kid.age ? ", age " + escapeHtml_(String(kid.age)) : "") +
+          (kid.notes ? " - Notes: " + escapeHtml_(kid.notes) : "") +
+          "</li>"
+        );
+      })
+      .join("") +
+    "</ul>"
+  );
+}
+
 function getCampCapacityStatus_(capacityMap, slug) {
   return capacityMap[slug] || {
     slug: slug,
@@ -825,12 +1144,25 @@ function roundCurrency_(value) {
   return Math.round(value * 100) / 100;
 }
 
+function moneyText_(value) {
+  return "$" + roundCurrency_(parseNumber_(value)).toFixed(2);
+}
+
 function sortableText_(value) {
   if (value instanceof Date) {
     return value.toISOString();
   }
 
   return String(value || "");
+}
+
+function escapeHtml_(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function getAvailabilityStatus_(remainingSpots) {
