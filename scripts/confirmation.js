@@ -2,8 +2,6 @@
   const config = window.SUNNYSIDE_CONFIG || {};
   const data = window.SUNNYSIDE_DATA;
   const statusBox = document.getElementById("confirmation-status");
-  const MAX_STATUS_POLLS = 8;
-  const STATUS_POLL_DELAY = 1500;
 
   if (!statusBox) {
     return;
@@ -47,43 +45,45 @@
     return;
   }
 
-  try {
-    const queued = sendConfirmation({
-      eventType: "payment_confirmation",
-      checkoutSessionId: checkoutSessionId,
-      registrationId: registrationId,
-      confirmedAt: new Date().toISOString()
+  showMessage(
+    "<strong>Your payment has been received.</strong><p>We are confirming it with your registration now.</p>",
+    true
+  );
+
+  confirmPayment(checkoutSessionId, registrationId)
+    .then(function (result) {
+      if (!result || !result.ok) {
+        showPendingHelp(result && result.error ? result.error : "");
+        return;
+      }
+
+      const normalizedStatus = String(result.paymentStatus || "").toLowerCase();
+
+      if (normalizedStatus === "paid") {
+        updateReferenceField("[data-payment-status]", "Paid");
+        markPendingRegistration(checkoutSessionId, "paid");
+        showMessage(
+          "<strong>Your camp payment is confirmed.</strong><p>Your registration is all set, and SunnySide has your payment on file.</p>",
+          true
+        );
+        return;
+      }
+
+      if (normalizedStatus === "paid_amount_mismatch") {
+        updateReferenceField("[data-payment-status]", "Needs Review");
+        markPendingRegistration(checkoutSessionId, "paid_amount_mismatch");
+        showMessage(
+          "<strong>Your payment was received.</strong><p>We are double-checking the amount against your registration and will follow up if anything needs attention.</p>",
+          false
+        );
+        return;
+      }
+
+      showPendingHelp(result.paymentStatus || "");
+    })
+    .catch(function () {
+      showPendingHelp();
     });
-
-    if (queued && registrationId) {
-      markPendingRegistration(checkoutSessionId, "confirmation_sent");
-      showMessage(
-        "<strong>Your payment has been received.</strong><p>We are matching it with your registration now. This can take a few seconds.</p>",
-        true
-      );
-      pollForFinalStatus(0);
-      return;
-    }
-
-    if (queued) {
-      updateReferenceField("[data-payment-status]", "Received");
-      showMessage(
-        "<strong>Your payment has been received.</strong><p>We could not automatically display the final registration status on this page, but SunnySide can still confirm it from Stripe if needed.</p>",
-        true
-      );
-      return;
-    }
-
-    showMessage(
-      "<strong>We could not finish the final confirmation step from this browser.</strong><p>Please keep your receipt and registration ID handy just in case SunnySide needs to double-check your payment.</p>",
-      false
-    );
-  } catch (error) {
-    showMessage(
-      "<strong>We could not finish your confirmation automatically.</strong><p>Please keep your receipt and registration ID handy and contact SunnySide if needed.</p>",
-      false
-    );
-  }
 
   function readPendingRegistration() {
     try {
@@ -113,102 +113,15 @@
     );
   }
 
-  function sendConfirmation(payload) {
-    const body = JSON.stringify(payload);
-
-    if (navigator.sendBeacon) {
-      const blob = new Blob([body], { type: "text/plain;charset=UTF-8" });
-      return navigator.sendBeacon(config.registrationWebhook, blob);
-    }
-
-    fetch(config.registrationWebhook, {
-      method: "POST",
-      mode: "no-cors",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8"
-      },
-      body: body
-    }).catch(function () {
-      return undefined;
-    });
-
-    return true;
-  }
-
-  function pollForFinalStatus(attempt) {
-    fetchRegistrationStatus(registrationId)
-      .then(function (result) {
-        if (!result || !result.ok) {
-          if (attempt < MAX_STATUS_POLLS - 1) {
-            retryConfirmation(attempt);
-            return;
-          }
-
-          showPendingHelp();
-          return;
-        }
-
-        const normalizedStatus = String(result.paymentStatus || "").toLowerCase();
-
-        if (normalizedStatus === "paid") {
-          updateReferenceField("[data-payment-status]", "Paid");
-          markPendingRegistration(checkoutSessionId, "paid");
-          showMessage(
-            "<strong>Your camp payment is confirmed.</strong><p>Your registration is all set, and SunnySide has your payment on file.</p>",
-            true
-          );
-          return;
-        }
-
-        if (normalizedStatus === "paid_amount_mismatch") {
-          updateReferenceField("[data-payment-status]", "Needs Review");
-          markPendingRegistration(checkoutSessionId, "paid_amount_mismatch");
-          showMessage(
-            "<strong>Your payment was received.</strong><p>We are double-checking the amount against your registration and will follow up if anything needs attention.</p>",
-            false
-          );
-          return;
-        }
-
-        if (attempt < MAX_STATUS_POLLS - 1) {
-          retryConfirmation(attempt);
-          return;
-        }
-
-        showPendingHelp(result.notes);
-      })
-      .catch(function () {
-        if (attempt < MAX_STATUS_POLLS - 1) {
-          retryConfirmation(attempt);
-          return;
-        }
-
-        showPendingHelp();
-      });
-  }
-
-  function retryConfirmation(attempt) {
-    window.setTimeout(function () {
-      sendConfirmation({
-        eventType: "payment_confirmation",
-        checkoutSessionId: checkoutSessionId,
-        registrationId: registrationId,
-        confirmedAt: new Date().toISOString()
-      });
-      pollForFinalStatus(attempt + 1);
-    }, STATUS_POLL_DELAY);
-  }
-
-  function fetchRegistrationStatus(targetRegistrationId) {
+  function confirmPayment(sessionId, targetRegistrationId) {
     return new Promise(function (resolve, reject) {
-      if (!config.registrationWebhook || !targetRegistrationId) {
-        resolve(null);
-        return;
-      }
-
-      const callbackName = "__sunnySideStatus" + Date.now() + Math.floor(Math.random() * 1000);
+      const callbackName = "__sunnySideConfirm" + Date.now() + Math.floor(Math.random() * 1000);
       const script = document.createElement("script");
       const url = new URL(config.registrationWebhook);
+      const timeoutId = window.setTimeout(function () {
+        cleanup();
+        reject(new Error("Confirmation request timed out."));
+      }, 12000);
 
       window[callbackName] = function (payload) {
         cleanup();
@@ -217,17 +130,24 @@
 
       script.onerror = function () {
         cleanup();
-        reject(new Error("Status request failed."));
+        reject(new Error("Confirmation request failed."));
       };
 
-      url.searchParams.set("action", "status");
-      url.searchParams.set("registrationId", targetRegistrationId);
+      url.searchParams.set("action", "confirm_payment");
+      url.searchParams.set("session_id", sessionId);
+
+      if (targetRegistrationId) {
+        url.searchParams.set("registration_id", targetRegistrationId);
+      }
+
       url.searchParams.set("callback", callbackName);
       url.searchParams.set("_", String(Date.now()));
       script.src = url.toString();
       document.body.appendChild(script);
 
       function cleanup() {
+        window.clearTimeout(timeoutId);
+
         if (script.parentNode) {
           script.parentNode.removeChild(script);
         }
@@ -241,11 +161,11 @@
     });
   }
 
-  function showPendingHelp(notes) {
+  function showPendingHelp(detail) {
     updateReferenceField("[data-payment-status]", "Pending Review");
     showMessage(
-      "<strong>Your payment was received, but the final confirmation is still catching up.</strong><p>Please refresh this page in a moment. If it still shows pending later, SunnySide can verify it from the registration sheet." +
-        (notes ? " " + notes : "") +
+      "<strong>Your payment was received, but we could not show the final confirmation on this page.</strong><p>Please keep your receipt handy. SunnySide can verify the payment from the registration sheet." +
+        (detail ? " " + detail : "") +
         "</p>",
       false
     );

@@ -40,6 +40,10 @@ const REGISTRATION_HEADERS = [
 function doGet(e) {
   const action = getParameter_(e, "action");
 
+  if (action === "confirm_payment") {
+    return handlePaymentConfirmationRequest_(e);
+  }
+
   if (action === "status") {
     return handleStatusRequest_(e);
   }
@@ -135,34 +139,48 @@ function handleRegistrationSubmission_(payload) {
 }
 
 function handlePaymentConfirmation_(payload) {
+  return outputJson_(confirmPayment_(payload, "confirmation_page"));
+}
+
+function handlePaymentConfirmationRequest_(e) {
+  const callback = getParameter_(e, "callback");
+  const payload = {
+    checkoutSessionId: getParameter_(e, "checkoutSessionId") || getParameter_(e, "session_id"),
+    registrationId: getParameter_(e, "registrationId") || getParameter_(e, "registration_id")
+  };
+
+  return outputJsonOrJsonp_(confirmPayment_(payload, "confirmation_page"), callback);
+}
+
+function confirmPayment_(payload, source) {
   const checkoutSessionId = payload.checkoutSessionId || payload.sessionId || "";
 
   if (!checkoutSessionId) {
-    return outputJson_({
+    return {
       ok: false,
       error: "Missing checkout session ID."
-    });
+    };
   }
 
   const session = retrieveCheckoutSession_(checkoutSessionId);
   const registrationId = payload.registrationId || session.client_reference_id || "";
 
   if (!registrationId) {
-    return outputJson_({
+    return {
       ok: false,
       error: "Checkout session did not include a registration ID."
-    });
+    };
   }
 
-  const result = reconcilePayment_(registrationId, session, "confirmation_page");
+  const result = reconcilePayment_(registrationId, session, source || "confirmation_page");
 
-  return outputJson_({
+  return {
     ok: true,
     registrationId: registrationId,
     checkoutSessionId: session.id,
     paymentStatus: result.status,
     rowsUpdated: result.rowsUpdated
-  });
+  };
 }
 
 function handleStripeEvent_(e, payload) {
@@ -215,7 +233,7 @@ function handleStripeEvent_(e, payload) {
 }
 
 function handleStatusRequest_(e) {
-  const registrationId = getParameter_(e, "registrationId");
+  const registrationId = getParameter_(e, "registrationId") || getParameter_(e, "registration_id");
   const callback = getParameter_(e, "callback");
 
   if (!registrationId) {
