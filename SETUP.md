@@ -145,7 +145,7 @@ To finish that setup:
 6. Use this redirect URL pattern:
 
 ```text
-https://YOUR-SITE/confirmation.html?session_id={CHECKOUT_SESSION_ID}
+https://sunnysidesummercamp.com/confirmation.html?session_id={CHECKOUT_SESSION_ID}
 ```
 
 When Stripe redirects to that page after payment, the site sends the checkout session ID to Apps Script. Apps Script then looks up the Stripe Checkout Session with your secret key, matches the `client_reference_id` back to the registration ID, and marks matching rows as paid.

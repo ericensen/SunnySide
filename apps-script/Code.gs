@@ -37,6 +37,9 @@ const REGISTRATION_HEADERS = [
   "Stripe Customer Email",
   "Paid At",
   "Confirmation Source",
+  "Parent Email Status",
+  "Admin Email Status",
+  "Email Last Attempt At",
   "Reconciliation Notes",
   "Last Updated At"
 ];
@@ -147,6 +150,9 @@ function handleRegistrationSubmission_(payload) {
             "Stripe Customer Email": "",
             "Paid At": "",
             "Confirmation Source": "",
+            "Parent Email Status": "",
+            "Admin Email Status": "",
+            "Email Last Attempt At": "",
             "Reconciliation Notes": "",
             "Last Updated At": timestamp
           },
@@ -662,11 +668,58 @@ function buildCampCapacityMap_(registrations) {
 }
 
 function sendRegistrationEmailsSafely_(payload) {
+  const registrationId = payload && payload.registrationId ? payload.registrationId : "";
+
   try {
     sendRegistrationEmails_(payload);
+    recordEmailStatus_(registrationId, {
+      parentStatus: payload && payload.email ? "sent" : "no_parent_email",
+      adminStatus: ADMIN_NOTIFICATION_EMAIL ? "sent" : "no_admin_email"
+    });
   } catch (error) {
-    Logger.log("Registration email failed: " + String(error && error.message ? error.message : error));
+    const message = String(error && error.message ? error.message : error);
+    Logger.log("Registration email failed: " + message);
+    recordEmailStatus_(registrationId, {
+      parentStatus: "error",
+      adminStatus: "error",
+      notes: "Registration email failed: " + message
+    });
   }
+}
+
+function sendTestEmail() {
+  const summary = {
+    registrationId: "TEST-" + new Date().getTime(),
+    submittedAt: new Date().toISOString(),
+    parentName: "Test Parent",
+    email: ADMIN_NOTIFICATION_EMAIL,
+    phone: CAMP_CONTACT_PHONE,
+    emergencyContact: "Test Emergency Contact",
+    emergencyPhone: CAMP_CONTACT_PHONE,
+    familyNotes: "This is a test email sent from Apps Script.",
+    signatureName: "Test Parent",
+    signatureDate: new Date().toISOString().slice(0, 10),
+    seatCount: 1,
+    totalDue: 30,
+    camps: [
+      {
+        slug: "test-camp",
+        title: "SunnySide Test Camp",
+        shortDate: "Test Date"
+      }
+    ],
+    kids: [
+      {
+        name: "Test Camper",
+        age: "8",
+        notes: "No notes"
+      }
+    ]
+  };
+
+  sendRegistrationEmails_(summary);
+
+  return "Test emails sent to " + ADMIN_NOTIFICATION_EMAIL;
 }
 
 function sendRegistrationEmails_(payload) {
@@ -701,6 +754,39 @@ function sendRegistrationEmails_(payload) {
       name: "SunnySide Summer Camp"
     });
   }
+}
+
+function recordEmailStatus_(registrationId, details) {
+  if (!registrationId) {
+    return;
+  }
+
+  const context = getSheetContext_();
+  const matches = findRegistrationRows_(context, registrationId);
+
+  if (!matches.length) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+
+  matches.forEach(function (match) {
+    const row = match.row;
+    const existingNotes = String(row[context.index["Reconciliation Notes"]] || "");
+
+    row[context.index["Parent Email Status"]] = details.parentStatus || "";
+    row[context.index["Admin Email Status"]] = details.adminStatus || "";
+    row[context.index["Email Last Attempt At"]] = now;
+    row[context.index["Last Updated At"]] = now;
+
+    if (details.notes) {
+      row[context.index["Reconciliation Notes"]] = existingNotes
+        ? existingNotes + " | " + details.notes
+        : details.notes;
+    }
+  });
+
+  writeUpdatedRows_(context, matches);
 }
 
 function buildRegistrationSummary_(payload) {
