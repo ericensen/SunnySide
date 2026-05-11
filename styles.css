@@ -808,9 +808,7 @@ textarea:focus {
 
 .about-founder-photo img {
   width: 100%;
-  aspect-ratio: 4 / 5;
-  object-fit: cover;
-  object-position: center 40%;
+  height: auto;
   border-radius: 20px;
   border: 1px solid var(--border);
   box-shadow: 0 18px 40px rgba(24, 49, 83, 0.12);
