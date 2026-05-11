@@ -92,7 +92,7 @@ That gives you a spreadsheet-based registration log with each child, family note
 The Apps Script backend now sends two emails whenever a registration is saved:
 
 - a confirmation email to the parent or guardian listed on the registration
-- an admin notification email to `ericensen@gmail.com`
+- an admin notification email to `sunnysidesummercamper@gmail.com`
 
 These emails include the confirmation ID, contact details, selected camp days, registered children, seat count, and total due.
 
