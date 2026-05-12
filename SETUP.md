@@ -19,13 +19,13 @@ This site is a static HTML/CSS/JS project, so you can open `index.html` directly
 
 The site currently includes the 7 camp names and dates you provided:
 
-- Science & STEM Camp - June 17, 2026
+- Science & STEM Camp - July 1, 2026
 - Arts and Crafts Camp - June 24, 2026
-- Cooking Camp - July 1, 2026
-- Sports and Movement Camp - July 8, 2026
-- Water Day Camp - July 15, 2026
-- Hogwarts / Wizarding Camp - July 22, 2026
-- Carnival Camp - July 29, 2026
+- Cooking Camp - July 8, 2026
+- Sports and Movement Camp - July 15, 2026
+- Water Day Camp - July 22, 2026
+- Hogwarts / Wizarding Camp - July 29, 2026
+- Carnival Camp - August 5, 2026
 
 If you send the 8th camp name and date, add one more object in `scripts/camp-data.js`.
 

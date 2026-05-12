@@ -8,7 +8,7 @@
     {
       slug: "science-stem",
       title: "Science & STEM Camp",
-      shortDate: "June 17, 2026",
+      shortDate: "July 1, 2026",
       image: assetPath("pictures/science-camp_cropped.jpg"),
       imageAlt: "Kids exploring colorful science materials at science camp",
       colors: ["#57c7ff", "#9be7ff"],
@@ -42,7 +42,7 @@
     {
       slug: "cooking",
       title: "Cooking Camp",
-      shortDate: "July 1, 2026",
+      shortDate: "July 8, 2026",
       image: assetPath("pictures/Cooking-Camp_cropped.jpg"),
       imageAlt: "Kids cooking and decorating treats during cooking camp",
       colors: ["#ffb36b", "#fff08c"],
@@ -59,7 +59,7 @@
     {
       slug: "sports-movement",
       title: "Sports and Movement Camp",
-      shortDate: "July 8, 2026",
+      shortDate: "July 15, 2026",
       image: assetPath("pictures/Sports-Camp.webp"),
       imageAlt: "Kids playing energetic games at sports and movement camp",
       colors: ["#69d78b", "#8fd3ff"],
@@ -76,7 +76,7 @@
     {
       slug: "water-day",
       title: "Water Day Camp",
-      shortDate: "July 15, 2026",
+      shortDate: "July 22, 2026",
       image: assetPath("pictures/Water-Camp_cropped.jpg"),
       imageAlt: "Kids splashing and cooling off during water day camp",
       colors: ["#59d6ff", "#8ff7e2"],
@@ -93,7 +93,7 @@
     {
       slug: "wizarding",
       title: "Hogwarts / Wizarding Camp",
-      shortDate: "July 22, 2026",
+      shortDate: "July 29, 2026",
       image: assetPath("pictures/Wizards-Camp_cropped.jpg"),
       imageAlt: "Kids enjoying wizard-themed camp activities",
       colors: ["#8a7cff", "#ffd86b"],
@@ -110,7 +110,7 @@
     {
       slug: "carnival",
       title: "Carnival Camp",
-      shortDate: "July 29, 2026",
+      shortDate: "August 5, 2026",
       image: assetPath("pictures/Carnival-Camp.jpg"),
       imageAlt: "Kids enjoying carnival games and colorful booths",
       colors: ["#ff7b7b", "#ffd26a"],
