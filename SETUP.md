@@ -37,19 +37,11 @@ Open `scripts/site-config.js` and set:
 stripePaymentLink: "https://buy.stripe.com/your-link"
 ```
 
-The project is currently wired to this Stripe **test-mode** Payment Link:
+The project is currently wired to this Stripe **live-mode** Payment Link:
 
 ```text
-https://buy.stripe.com/test_4gMcN4bfG05UfLz1I5co001
+https://buy.stripe.com/4gM9ASaaEcEUfiU3HzcQU01
 ```
-
-Created in the Stripe sandbox account as:
-
-- Product: `SunnySide Camp Seat`
-- Product ID: `prod_UMU84L3fN48GBf`
-- Price: `$30.00`
-- Price ID: `price_1TNlDgANrtSgrYf0qgMIeTZy`
-- Payment Link ID: `plink_1TNlEbANrtSgrYf0w14tOmYM`
 
 Recommended simple setup:
 
@@ -62,9 +54,9 @@ Parents can then use one payment link for one kid, multiple kids, or multiple ca
 
 ### Important note about the current Stripe link
 
-- The current link is in Stripe **sandbox/test mode**, not live mode.
-- Before taking real payments, recreate this product, price, and payment link in your **live** Stripe account and replace the test link in `scripts/site-config.js`.
-- Do **not** enable adjustable quantity unless you also want parents changing seat counts inside Stripe. The site is currently designed so the registration form is the source of truth for child names and selected camps.
+- The current link is in Stripe **live mode** and can accept real payments.
+- Keep the registration form as the source of truth for child names and selected camps.
+- If adjustable quantity is enabled in Stripe, parents should match the Stripe quantity to the seat count shown on the registration page.
 - Stripe stores `$30.00` as `unit_amount: 3000` because USD uses cents.
 
 ## Registration tracking setup
@@ -138,7 +130,7 @@ The checkout flow now sends a `client_reference_id` into Stripe using the regist
 To finish that setup:
 
 1. In Apps Script, open **Project Settings** and add a script property named `STRIPE_SECRET_KEY`.
-2. Set `STRIPE_SECRET_KEY` to your Stripe **test secret key** while you are in sandbox mode.
+2. Set `STRIPE_SECRET_KEY` to your Stripe **live secret key** before taking real payments.
 3. Deploy or redeploy the Apps Script web app after updating `apps-script/Code.gs`.
 4. Paste the deployed web app URL into `registrationWebhook` in `scripts/site-config.js`.
 5. In Stripe, open your Payment Link and set **After payment** to redirect to your site.
@@ -167,8 +159,8 @@ YOUR_APPS_SCRIPT_WEB_APP_URL?token=YOUR_TOKEN_HERE
 
 ## Notes
 
-- Payment is not truly live until you switch from the Stripe test link to a live Payment Link.
+- Payment is live now that `scripts/site-config.js` uses the live Stripe Payment Link and Apps Script uses a live Stripe secret key.
 - Central registration tracking is not truly live until you add a webhook URL.
-- Automatic payment reconciliation is not truly live until you add the Apps Script `STRIPE_SECRET_KEY` property and configure the Stripe redirect to `confirmation.html`.
+- Automatic payment reconciliation depends on the Apps Script `STRIPE_SECRET_KEY` property and the Stripe redirect to `confirmation.html`.
 - The built-in local backup uses browser storage and is only a fallback, not your main production database.
 - The spreadsheet summary uses the internal 20-seat planning cap, but true capacity enforcement still depends on your live registration backend or spreadsheet process.

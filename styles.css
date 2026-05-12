@@ -797,13 +797,15 @@ textarea:focus {
 
 .about-story-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 0.82fr) minmax(0, 1.18fr);
+  grid-template-columns: minmax(220px, 340px) minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
 }
 
 .about-founder-photo {
   margin: 0;
+  justify-self: center;
+  width: 100%;
 }
 
 .about-founder-photo img {
@@ -891,6 +893,10 @@ textarea:focus {
 
   .about-story-grid {
     grid-template-columns: 1fr;
+  }
+
+  .about-founder-photo {
+    width: min(100%, 360px);
   }
 }
 
