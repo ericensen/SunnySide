@@ -6,23 +6,6 @@
 
   const camps = [
     {
-      slug: "science-stem",
-      title: "Science & STEM Camp",
-      shortDate: "July 1, 2026",
-      image: assetPath("pictures/science-camp_cropped.jpg"),
-      imageAlt: "Kids exploring colorful science materials at science camp",
-      colors: ["#57c7ff", "#9be7ff"],
-      blurb: "Fizzing experiments, curious questions, and build-it challenges.",
-      description:
-        "Kids will mix, test, build, and explore through playful science stations and hands-on STEM moments designed for big smiles and bigger discoveries.",
-      details: [
-        "From bubbling reactions to mini engineering tasks, this camp is all about curiosity in motion.",
-        "The day mixes high-energy discovery with simple problem-solving challenges so campers can create, test, tweak, and celebrate what they make."
-      ],
-      highlights: ["Hands-on experiments", "Mini builder challenges", "Take-home discovery pride"],
-      photoCaption: "Bubble lab fun"
-    },
-    {
       slug: "arts-crafts",
       title: "Arts and Crafts Camp",
       shortDate: "June 24, 2026",
@@ -38,6 +21,23 @@
       ],
       highlights: ["Color-packed projects", "Creative confidence", "Lots of display-worthy art"],
       photoCaption: "Paint and paste station"
+    },
+    {
+      slug: "science-stem",
+      title: "Science & STEM Camp",
+      shortDate: "July 1, 2026",
+      image: assetPath("pictures/science-camp_cropped.jpg"),
+      imageAlt: "Kids exploring colorful science materials at science camp",
+      colors: ["#57c7ff", "#9be7ff"],
+      blurb: "Fizzing experiments, curious questions, and build-it challenges.",
+      description:
+        "Kids will mix, test, build, and explore through playful science stations and hands-on STEM moments designed for big smiles and bigger discoveries.",
+      details: [
+        "From bubbling reactions to mini engineering tasks, this camp is all about curiosity in motion.",
+        "The day mixes high-energy discovery with simple problem-solving challenges so campers can create, test, tweak, and celebrate what they make."
+      ],
+      highlights: ["Hands-on experiments", "Mini builder challenges", "Take-home discovery pride"],
+      photoCaption: "Bubble lab fun"
     },
     {
       slug: "cooking",
