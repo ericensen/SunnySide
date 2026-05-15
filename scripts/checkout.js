@@ -24,6 +24,8 @@
 
   const params = new URLSearchParams(window.location.search);
   const preselectedCamp = params.get("camp");
+  const minCamperAge = data.minAge || 5;
+  const maxCamperAge = data.maxAge || 12;
 
   function getLocalToday() {
     const today = new Date();
@@ -166,6 +168,12 @@
     return "SSC-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
   }
 
+  function isEligibleAge(age) {
+    const parsedAge = Number(age);
+
+    return Number.isInteger(parsedAge) && parsedAge >= minCamperAge && parsedAge <= maxCamperAge;
+  }
+
   function sendToWebhook(payload) {
     if (!config.registrationWebhook) {
       return;
@@ -263,6 +271,23 @@
       if (!children.length) {
         setSubmittingState(false);
         showStatus("<strong>Please add at least one child with a name and age.</strong>", false);
+        return;
+      }
+
+      const ineligibleChildren = children.filter(function (kid) {
+        return !isEligibleAge(kid.age);
+      });
+
+      if (ineligibleChildren.length) {
+        setSubmittingState(false);
+        showStatus(
+          "<strong>SunnySide camp is for kids ages " +
+            minCamperAge +
+            " to " +
+            maxCamperAge +
+            ".</strong><p>Please update each camper age before continuing.</p>",
+          false
+        );
         return;
       }
 

@@ -14,6 +14,7 @@ This site is a static HTML/CSS/JS project, so you can open `index.html` directly
   - typed waiver signature
   - live pricing summary
 - Local browser backup of submitted registrations
+- Age range copy and validation for campers ages 5 to 12
 
 ## Camps currently configured
 

@@ -145,6 +145,8 @@
   window.SUNNYSIDE_DATA = {
     pricePerKid: 30,
     maxOpenings: 20,
+    minAge: 5,
+    maxAge: 12,
     camps: camps,
     money: money,
     campUrl: campUrl,

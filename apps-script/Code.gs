@@ -3,6 +3,8 @@ const SHEET_NAME = "Registrations";
 const CAMP_SUMMARY_SHEET_NAME = "Camp Summary";
 const PAYMENT_FOLLOW_UP_SHEET_NAME = "Payment Follow Up";
 const DEFAULT_CAMP_CAPACITY = 20;
+const MIN_CAMPER_AGE = 5;
+const MAX_CAMPER_AGE = 12;
 const ADMIN_NOTIFICATION_EMAIL = "sunnysidesummercamper@gmail.com";
 const CAMP_CONTACT_EMAIL = "sunnysidesummercamper@gmail.com";
 const CAMP_CONTACT_PHONE = "(801) 230-1068";
@@ -99,6 +101,17 @@ function handleRegistrationSubmission_(payload) {
     return outputJson_({
       ok: false,
       error: "At least one camp and one child are required."
+    });
+  }
+
+  const ineligibleKids = kids.filter(function (kid) {
+    return !isEligibleCamperAge_(kid.age);
+  });
+
+  if (ineligibleKids.length) {
+    return outputJson_({
+      ok: false,
+      error: "SunnySide camp is for kids ages " + MIN_CAMPER_AGE + " to " + MAX_CAMPER_AGE + "."
     });
   }
 
@@ -1224,6 +1237,16 @@ function parseJson_(text) {
 function parseNumber_(value) {
   const parsed = Number(value);
   return isNaN(parsed) ? 0 : parsed;
+}
+
+function isEligibleCamperAge_(age) {
+  const parsedAge = Number(age);
+
+  return (
+    parsedAge === Math.floor(parsedAge) &&
+    parsedAge >= MIN_CAMPER_AGE &&
+    parsedAge <= MAX_CAMPER_AGE
+  );
 }
 
 function roundCurrency_(value) {

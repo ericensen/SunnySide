@@ -34,6 +34,7 @@
           <p class="hero-text">${camp.description}</p>
           <div class="camp-meta">
             <span class="meta-pill">${status.soldOut ? "Sold Out" : "Only " + data.money(data.pricePerKid) + "!"}</span>
+            <span class="meta-pill">Ages ${data.minAge}-${data.maxAge}</span>
             <span class="meta-pill">${status.soldOut ? "This camp has reached capacity." : "Limited availability. Book today!"}</span>
             <span class="meta-pill">Summer 2026</span>
           </div>
@@ -87,7 +88,7 @@
             ${
               status.soldOut
                 ? "This camp has reached the 20-seat limit. You can still view the details here and check back in case availability opens up."
-                : "This camp day is designed to feel bright, welcoming, and easy to enjoy from drop-off through pickup."
+                : "This camp day is designed for kids ages " + data.minAge + " to " + data.maxAge + " and is made to feel bright, welcoming, and easy to enjoy from drop-off through pickup."
             }
           </p>
           ${sidebarAction}

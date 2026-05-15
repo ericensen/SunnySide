@@ -23,6 +23,7 @@
             <div class="camp-card-body">
               <div class="camp-card-meta">
                 <span>${camp.shortDate}</span>
+                <span>Ages ${data.minAge}-${data.maxAge}</span>
                 <span>${status.soldOut ? "Sold Out" : "Only " + data.money(data.pricePerKid) + "!"}</span>
               </div>
               <div class="camp-title-wrap">
