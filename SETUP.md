@@ -13,15 +13,15 @@ This site is a static HTML/CSS/JS project, so you can open `index.html` directly
   - one or more camp selections
   - typed waiver signature
   - live pricing summary
-- Local browser backup of submitted registrations
+- Local browser state for pending checkout details
 - Age range copy and validation for campers ages 5 to 12
 
 ## Camps currently configured
 
 The site currently includes the 7 camp names and dates you provided:
 
-- Science & STEM Camp - July 1, 2026
 - Arts and Crafts Camp - June 24, 2026
+- Science & STEM Camp - July 1, 2026
 - Cooking Camp - July 8, 2026
 - Sports and Movement Camp - July 15, 2026
 - Water Day Camp - July 22, 2026
@@ -38,6 +38,7 @@ The site now creates a Stripe Checkout Session through Google Apps Script for ea
 - Apps Script looks up the saved registration by confirmation ID.
 - Apps Script creates a Stripe Checkout Session with the exact quantity of `$30` camp seats.
 - Parents are sent to that Stripe-hosted checkout page automatically.
+- Checkout is currently limited to card payments so Stripe Link is not shown as the default payment method.
 
 This replaced the earlier static Payment Link approach so parents no longer need to adjust quantity inside Stripe.
 
@@ -69,7 +70,7 @@ That gives you a spreadsheet-based registration log with each child, family note
 
 ### Registration email notifications
 
-The Apps Script backend now sends two emails whenever a registration is saved:
+The Apps Script backend now sends two emails after payment is confirmed and the registration is saved:
 
 - a confirmation email to the parent or guardian listed on the registration
 - an admin notification email to `sunnysidesummercamper@gmail.com`
@@ -144,5 +145,5 @@ YOUR_APPS_SCRIPT_WEB_APP_URL?token=YOUR_TOKEN_HERE
 - Payment is live when Apps Script uses a live Stripe secret key and `scripts/site-config.js` points to the live Apps Script web app URL.
 - Central registration tracking depends on the configured Apps Script webhook URL.
 - Automatic payment reconciliation depends on the Apps Script `STRIPE_SECRET_KEY` property and the Stripe redirect to `confirmation.html`.
-- The built-in local backup uses browser storage and is only a fallback, not your main production database.
+- Browser storage is only used to show pending checkout details on the confirmation page, not as your production registration database.
 - The spreadsheet summary uses the internal 20-seat planning cap, but true capacity enforcement still depends on your live registration backend or spreadsheet process.

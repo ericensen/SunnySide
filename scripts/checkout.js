@@ -2,9 +2,10 @@
   const data = window.SUNNYSIDE_DATA;
   const config = window.SUNNYSIDE_CONFIG || {};
   const capacity = window.SUNNYSIDE_CAPACITY;
+  const checkoutLogic = window.SUNNYSIDE_CHECKOUT_LOGIC;
   const form = document.getElementById("checkout-form");
 
-  if (!form) {
+  if (!form || !checkoutLogic) {
     return;
   }
 
@@ -116,8 +117,8 @@
     const kids = getChildren().filter(function (kid) {
       return kid.name || kid.age || kid.notes;
     });
-    const seatCount = camps.length * kids.length;
-    const total = seatCount * data.pricePerKid;
+    const seatCount = checkoutLogic.calculateSeatCount(camps, kids);
+    const total = checkoutLogic.calculateTotalDue(seatCount, data.pricePerKid);
 
     summaryFields.camps.textContent = String(camps.length);
     summaryFields.kids.textContent = String(kids.length);
@@ -136,13 +137,6 @@
           })
           .join("")
       : '<p>Select one or more camps to see your summary here.</p>';
-  }
-
-  function saveLocalRegistration(payload) {
-    const key = "sunnySideRegistrations";
-    const existing = JSON.parse(localStorage.getItem(key) || "[]");
-    existing.push(payload);
-    localStorage.setItem(key, JSON.stringify(existing));
   }
 
   function savePendingRegistration(payload) {
@@ -166,12 +160,6 @@
     }
 
     return "SSC-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
-  }
-
-  function isEligibleAge(age) {
-    const parsedAge = Number(age);
-
-    return Number.isInteger(parsedAge) && parsedAge >= minCamperAge && parsedAge <= maxCamperAge;
   }
 
   function sendToWebhook(payload) {
@@ -217,12 +205,7 @@
     }
 
     try {
-      const url = new URL(config.registrationWebhook);
-
-      url.searchParams.set("action", "create_checkout_session");
-      url.searchParams.set("registration_id", payload.registrationId);
-
-      return url.toString();
+      return checkoutLogic.buildCheckoutSessionRequestUrl(config.registrationWebhook, payload.registrationId);
     } catch (error) {
       return "";
     }
@@ -335,9 +318,7 @@
         return;
       }
 
-      const ineligibleChildren = children.filter(function (kid) {
-        return !isEligibleAge(kid.age);
-      });
+      const ineligibleChildren = checkoutLogic.getIneligibleChildren(children, minCamperAge, maxCamperAge);
 
       if (ineligibleChildren.length) {
         setSubmittingState(false);
@@ -352,10 +333,13 @@
         return;
       }
 
-      const soldOutSelections = selectedCamps.filter(function (camp) {
-        const availability = capacity ? capacity.getCampStatus(camp.slug) : { soldOut: false };
-        return availability.soldOut || availability.remainingSpots < children.length;
-      });
+      const soldOutSelections = checkoutLogic.getSoldOutSelections(
+        selectedCamps,
+        children,
+        function (slug) {
+          return capacity ? capacity.getCampStatus(slug) : { soldOut: false };
+        }
+      );
 
       if (soldOutSelections.length) {
         setSubmittingState(false);
@@ -368,8 +352,8 @@
         return;
       }
 
-      const seatCount = selectedCamps.length * children.length;
-      const totalDue = seatCount * data.pricePerKid;
+      const seatCount = checkoutLogic.calculateSeatCount(selectedCamps, children);
+      const totalDue = checkoutLogic.calculateTotalDue(seatCount, data.pricePerKid);
       const payload = {
         registrationId: createRegistrationId(),
         submittedAt: new Date().toISOString(),
@@ -396,7 +380,6 @@
       };
 
       try {
-        saveLocalRegistration(payload);
         savePendingRegistration(payload);
       } catch (error) {
         setSubmittingState(false);
@@ -410,10 +393,10 @@
       sendToWebhook(payload);
 
       showStatus(
-        `<strong>Registration saved.</strong>
-         <p>Saved ${children.length} child${children.length === 1 ? "" : "ren"} for ${selectedCamps.length} camp${selectedCamps.length === 1 ? "" : "s"}.</p>
+        `<strong>Registration details saved.</strong>
+         <p>We saved ${children.length} child${children.length === 1 ? "" : "ren"} for ${selectedCamps.length} camp${selectedCamps.length === 1 ? "" : "s"}.</p>
          <p>Total due: <strong>${data.money(totalDue)}</strong></p>
-         <p>Preparing your secure payment page for <strong>${seatCount}</strong> camp seat${seatCount === 1 ? "" : "s"} now.</p>`,
+         <p>Preparing your secure payment page for <strong>${seatCount}</strong> camp seat${seatCount === 1 ? "" : "s"}. Your camp registration is confirmed after payment.</p>`,
         true
       );
 
@@ -426,7 +409,7 @@
         .catch(function (error) {
           setSubmittingState(false);
           showStatus(
-            `<strong>Registration saved, but payment could not open automatically.</strong>
+            `<strong>Registration details were saved, but payment could not open automatically.</strong>
              <p>${error && error.message ? error.message : "Please contact SunnySide for help completing payment."}</p>
              <p>Please contact SunnySide and include registration ID <strong>${payload.registrationId}</strong>.</p>`,
             false

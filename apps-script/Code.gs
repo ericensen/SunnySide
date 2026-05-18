@@ -1,5 +1,6 @@
 const SPREADSHEET_ID = "1zqINFZdhJjMSogbwOsgAM_FwUJgj3KwTnAy7n3NXmug";
 const SHEET_NAME = "Registrations";
+const PENDING_CHECKOUT_SHEET_NAME = "Pending Checkouts";
 const CAMP_SUMMARY_SHEET_NAME = "Camp Summary";
 const PAYMENT_FOLLOW_UP_SHEET_NAME = "Payment Follow Up";
 const DEFAULT_CAMP_CAPACITY = 20;
@@ -45,6 +46,18 @@ const REGISTRATION_HEADERS = [
   "Admin Email Status",
   "Email Last Attempt At",
   "Reconciliation Notes",
+  "Last Updated At"
+];
+const PENDING_CHECKOUT_HEADERS = [
+  "Created At",
+  "Registration ID",
+  "Parent Name",
+  "Email",
+  "Seat Count",
+  "Total Due",
+  "Status",
+  "Stripe Checkout Session ID",
+  "Payload JSON",
   "Last Updated At"
 ];
 
@@ -94,7 +107,6 @@ function handleRegistrationSubmission_(payload) {
   const context = getSheetContext_();
   const camps = Array.isArray(payload.camps) ? payload.camps : [];
   const kids = Array.isArray(payload.kids) ? payload.kids : [];
-  const rows = [];
   const timestamp = payload.submittedAt || new Date().toISOString();
   const capacityMap = buildCampCapacityMap_(getRegistrationObjects_(context));
   const requestedSeatsPerCamp = kids.length;
@@ -137,62 +149,11 @@ function handleRegistrationSubmission_(payload) {
     });
   }
 
-  camps.forEach(function (camp) {
-    kids.forEach(function (kid) {
-      rows.push(
-        rowValuesFromObject_(
-          {
-            "Submitted At": timestamp,
-            "Registration ID": payload.registrationId || "",
-            "Parent Name": payload.parentName || "",
-            Email: payload.email || "",
-            Phone: payload.phone || "",
-            "Emergency Contact": payload.emergencyContact || "",
-            "Emergency Phone": payload.emergencyPhone || "",
-            "Family Notes": payload.familyNotes || "",
-            "Camp Slug": camp.slug || "",
-            "Camp Title": camp.title || "",
-            "Camp Date": camp.shortDate || "",
-            "Child Name": kid.name || "",
-            "Child Age": kid.age || "",
-            "Child Notes": kid.notes || "",
-            "Waiver Accepted": payload.waiverAccepted ? "Yes" : "No",
-            "Signature Name": payload.signatureName || "",
-            "Signature Date": payload.signatureDate || "",
-            "Seat Count": payload.seatCount || "",
-            "Total Due": payload.totalDue || "",
-            "Payment Status": "pending",
-            "Stripe Checkout Session ID": "",
-            "Stripe Payment Intent ID": "",
-            "Stripe Amount Total": "",
-            "Stripe Currency": "",
-            "Stripe Customer Email": "",
-            "Paid At": "",
-            "Confirmation Source": "",
-            "Parent Email Status": "",
-            "Admin Email Status": "",
-            "Email Last Attempt At": "",
-            "Reconciliation Notes": "",
-            "Last Updated At": timestamp
-          },
-          context.headers
-        )
-      );
-    });
-  });
-
-  if (rows.length) {
-    context.sheet
-      .getRange(context.sheet.getLastRow() + 1, 1, rows.length, context.headers.length)
-      .setValues(rows);
-  }
-
-  refreshReportingSheets_();
-  sendRegistrationEmailsSafely_(payload);
+  savePendingCheckout_(payload, "registration_submitted", "");
 
   return outputJson_({
     ok: true,
-    rowsWritten: rows.length,
+    pending: true,
     registrationId: payload.registrationId || ""
   });
 }
@@ -367,10 +328,7 @@ function reconcilePayment_(registrationId, session, source) {
   const now = new Date().toISOString();
 
   if (!matches.length) {
-    return {
-      status: "registration_not_found",
-      rowsUpdated: 0
-    };
+    return finalizePendingCheckoutPayment_(registrationId, session, source);
   }
 
   const firstMatch = matches[0].row;
@@ -437,21 +395,20 @@ function retrieveCheckoutSession_(sessionId) {
 }
 
 function createCheckoutSessionForRegistration_(registrationId) {
-  const context = getSheetContext_();
-  const matches = findRegistrationRows_(context, registrationId);
+  const pending = findPendingCheckout_(registrationId);
 
-  if (!matches.length) {
+  if (!pending) {
     return {
       ok: false,
       error: "Registration ID not found."
     };
   }
 
-  const firstRow = matches[0].row;
-  const parentEmail = firstRow[context.index["Email"]] || "";
-  const parentName = firstRow[context.index["Parent Name"]] || "";
-  const seatCount = parseNumber_(firstRow[context.index["Seat Count"]]) || matches.length;
-  const totalDue = parseNumber_(firstRow[context.index["Total Due"]]) || seatCount * (CAMP_SEAT_PRICE_CENTS / 100);
+  const payload = pending.payload;
+  const parentEmail = payload.email || "";
+  const parentName = payload.parentName || "";
+  const seatCount = parseNumber_(payload.seatCount);
+  const totalDue = parseNumber_(payload.totalDue);
   const expectedTotal = roundCurrency_(seatCount * (CAMP_SEAT_PRICE_CENTS / 100));
 
   if (seatCount < 1) {
@@ -473,6 +430,10 @@ function createCheckoutSessionForRegistration_(registrationId) {
     parentEmail: parentEmail,
     parentName: parentName,
     seatCount: seatCount
+  });
+  updatePendingCheckout_(registrationId, {
+    status: "checkout_created",
+    checkoutSessionId: session.id
   });
 
   return {
@@ -505,6 +466,7 @@ function createStripeCheckoutSession_(options) {
     client_reference_id: options.registrationId,
     success_url: successUrl,
     cancel_url: cancelUrl,
+    "payment_method_types[0]": "card",
     "line_items[0][price_data][currency]": "usd",
     "line_items[0][price_data][unit_amount]": String(CAMP_SEAT_PRICE_CENTS),
     "line_items[0][price_data][product_data][name]": "SunnySide Camp Seat",
@@ -537,6 +499,191 @@ function createStripeCheckoutSession_(options) {
   }
 
   return body;
+}
+
+function finalizePendingCheckoutPayment_(registrationId, session, source) {
+  const pending = findPendingCheckout_(registrationId);
+  const paymentStatus = session.payment_status || "unpaid";
+
+  if (!pending) {
+    return {
+      status: "registration_not_found",
+      rowsUpdated: 0
+    };
+  }
+
+  if (paymentStatus !== "paid") {
+    updatePendingCheckout_(registrationId, {
+      status: paymentStatus || "unpaid",
+      checkoutSessionId: session.id || ""
+    });
+
+    return {
+      status: paymentStatus,
+      rowsUpdated: 0
+    };
+  }
+
+  const payload = pending.payload;
+  const context = getSheetContext_();
+  const rows = buildRegistrationRowsFromPayload_(payload, session, source);
+
+  if (rows.length) {
+    context.sheet
+      .getRange(context.sheet.getLastRow() + 1, 1, rows.length, context.headers.length)
+      .setValues(
+        rows.map(function (rowObject) {
+          return rowValuesFromObject_(rowObject, context.headers);
+        })
+      );
+  }
+
+  updatePendingCheckout_(registrationId, {
+    status: "paid_registered",
+    checkoutSessionId: session.id || ""
+  });
+  refreshReportingSheets_();
+  sendRegistrationEmailsSafely_(payload);
+
+  return {
+    status: "paid",
+    rowsUpdated: rows.length
+  };
+}
+
+function buildRegistrationRowsFromPayload_(payload, session, source) {
+  const camps = Array.isArray(payload.camps) ? payload.camps : [];
+  const kids = Array.isArray(payload.kids) ? payload.kids : [];
+  const timestamp = payload.submittedAt || new Date().toISOString();
+  const now = new Date().toISOString();
+  const stripeTotal = typeof session.amount_total === "number" ? session.amount_total / 100 : "";
+
+  const expectedTotal = parseNumber_(payload.totalDue);
+  const paymentStatus =
+    session.payment_status === "paid" && expectedTotal && stripeTotal !== expectedTotal
+      ? "paid_amount_mismatch"
+      : session.payment_status || "unpaid";
+  const notes =
+    paymentStatus === "paid_amount_mismatch"
+      ? "Stripe amount does not match the expected registration total."
+      : "";
+  const rows = [];
+
+  camps.forEach(function (camp) {
+    kids.forEach(function (kid) {
+      rows.push({
+        "Submitted At": timestamp,
+        "Registration ID": payload.registrationId || "",
+        "Parent Name": payload.parentName || "",
+        Email: payload.email || "",
+        Phone: payload.phone || "",
+        "Emergency Contact": payload.emergencyContact || "",
+        "Emergency Phone": payload.emergencyPhone || "",
+        "Family Notes": payload.familyNotes || "",
+        "Camp Slug": camp.slug || "",
+        "Camp Title": camp.title || "",
+        "Camp Date": camp.shortDate || "",
+        "Child Name": kid.name || "",
+        "Child Age": kid.age || "",
+        "Child Notes": kid.notes || "",
+        "Waiver Accepted": payload.waiverAccepted ? "Yes" : "No",
+        "Signature Name": payload.signatureName || "",
+        "Signature Date": payload.signatureDate || "",
+        "Seat Count": payload.seatCount || "",
+        "Total Due": payload.totalDue || "",
+        "Payment Status": paymentStatus,
+        "Stripe Checkout Session ID": session.id || "",
+        "Stripe Payment Intent ID": session.payment_intent || "",
+        "Stripe Amount Total": stripeTotal,
+        "Stripe Currency": session.currency || "",
+        "Stripe Customer Email": getStripeCustomerEmail_(session),
+        "Paid At": session.payment_status === "paid" ? now : "",
+        "Confirmation Source": source,
+        "Parent Email Status": "",
+        "Admin Email Status": "",
+        "Email Last Attempt At": "",
+        "Reconciliation Notes": notes,
+        "Last Updated At": now
+      });
+    });
+  });
+
+  return rows;
+}
+
+function savePendingCheckout_(payload, status, checkoutSessionId) {
+  const context = getPendingCheckoutContext_();
+  const registrationId = payload.registrationId || "";
+  const now = new Date().toISOString();
+  const existing = findPendingCheckout_(registrationId);
+  const rowObject = {
+    "Created At": existing ? existing.row[context.index["Created At"]] : payload.submittedAt || now,
+    "Registration ID": registrationId,
+    "Parent Name": payload.parentName || "",
+    Email: payload.email || "",
+    "Seat Count": payload.seatCount || "",
+    "Total Due": payload.totalDue || "",
+    Status: status || "registration_submitted",
+    "Stripe Checkout Session ID": checkoutSessionId || "",
+    "Payload JSON": JSON.stringify(payload),
+    "Last Updated At": now
+  };
+  const rowValues = rowValuesFromObject_(rowObject, context.headers);
+
+  if (existing) {
+    context.sheet.getRange(existing.rowNumber, 1, 1, context.headers.length).setValues([rowValues]);
+    return;
+  }
+
+  context.sheet.getRange(context.sheet.getLastRow() + 1, 1, 1, context.headers.length).setValues([rowValues]);
+}
+
+function updatePendingCheckout_(registrationId, details) {
+  const context = getPendingCheckoutContext_();
+  const pending = findPendingCheckout_(registrationId, context);
+
+  if (!pending) {
+    return;
+  }
+
+  const row = pending.row;
+
+  if (details.status) {
+    row[context.index.Status] = details.status;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(details, "checkoutSessionId")) {
+    row[context.index["Stripe Checkout Session ID"]] = details.checkoutSessionId || "";
+  }
+
+  row[context.index["Last Updated At"]] = new Date().toISOString();
+  context.sheet.getRange(pending.rowNumber, 1, 1, context.headers.length).setValues([row]);
+}
+
+function findPendingCheckout_(registrationId, existingContext) {
+  const context = existingContext || getPendingCheckoutContext_();
+  const dataRowCount = Math.max(context.sheet.getLastRow() - 1, 0);
+
+  if (!registrationId || !dataRowCount) {
+    return null;
+  }
+
+  const values = context.sheet.getRange(2, 1, dataRowCount, context.headers.length).getValues();
+  const registrationColumn = context.index["Registration ID"];
+
+  for (let index = 0; index < values.length; index += 1) {
+    const row = values[index];
+
+    if (String(row[registrationColumn] || "") === registrationId) {
+      return {
+        rowNumber: index + 2,
+        row: row,
+        payload: parseJson_(row[context.index["Payload JSON"]] || "{}")
+      };
+    }
+  }
+
+  return null;
 }
 
 function findRegistrationRows_(context, registrationId) {
@@ -578,7 +725,24 @@ function getSheetContext_() {
     sheet = spreadsheet.insertSheet(SHEET_NAME);
   }
 
-  const headers = ensureHeaders_(sheet);
+  const headers = ensureHeaders_(sheet, REGISTRATION_HEADERS);
+
+  return {
+    sheet: sheet,
+    headers: headers,
+    index: buildHeaderIndex_(headers)
+  };
+}
+
+function getPendingCheckoutContext_() {
+  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = spreadsheet.getSheetByName(PENDING_CHECKOUT_SHEET_NAME);
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(PENDING_CHECKOUT_SHEET_NAME);
+  }
+
+  const headers = ensureHeaders_(sheet, PENDING_CHECKOUT_HEADERS);
 
   return {
     sheet: sheet,
@@ -869,7 +1033,7 @@ function sendRegistrationEmails_(payload) {
   const registrationSummary = buildRegistrationSummary_(payload);
   const adminEmail = ADMIN_NOTIFICATION_EMAIL;
   const parentEmail = payload.email || "";
-  const parentSubject = "SunnySide Registration Received - " + registrationSummary.registrationId;
+  const parentSubject = "SunnySide Registration Confirmed - " + registrationSummary.registrationId;
   const adminSubject = "New SunnySide Registration - " + registrationSummary.registrationId;
   const parentTextBody = buildParentEmailText_(registrationSummary);
   const parentHtmlBody = buildParentEmailHtml_(registrationSummary);
@@ -968,11 +1132,11 @@ function buildRegistrationSummary_(payload) {
 
 function buildParentEmailText_(summary) {
   const lines = [
-    "SunnySide Summer Camp Registration Received",
+    "SunnySide Summer Camp Registration Confirmed",
     "",
     "Hi " + (summary.parentName || "there") + ",",
     "",
-    "Thanks for registering with SunnySide Summer Camp.",
+    "Thanks for registering with SunnySide Summer Camp. Your payment has been received and your camp spot is confirmed.",
     "Your confirmation ID is " + summary.registrationId + ".",
     "",
     "Registration details:",
@@ -996,7 +1160,7 @@ function buildParentEmailText_(summary) {
     "",
     summary.familyNotes ? "Family notes: " + summary.familyNotes : "Family notes: None provided",
     "",
-    "Payment is confirmed separately after checkout. Please keep this email for your records.",
+    "Please keep this email for your records.",
     "",
     "SunnySide Summer Camp"
   ];
@@ -1006,11 +1170,11 @@ function buildParentEmailText_(summary) {
 
 function buildParentEmailHtml_(summary) {
   return (
-    "<h2>SunnySide Summer Camp Registration Received</h2>" +
+    "<h2>SunnySide Summer Camp Registration Confirmed</h2>" +
     "<p>Hi " +
     escapeHtml_(summary.parentName || "there") +
     ",</p>" +
-    "<p>Thanks for registering with SunnySide Summer Camp. Your confirmation ID is <strong>" +
+    "<p>Thanks for registering with SunnySide Summer Camp. Your payment has been received and your confirmation ID is <strong>" +
     escapeHtml_(summary.registrationId) +
     "</strong>.</p>" +
     "<h3>Registration details</h3>" +
@@ -1053,7 +1217,7 @@ function buildParentEmailHtml_(summary) {
     "<p><strong>Family notes:</strong> " +
     escapeHtml_(summary.familyNotes || "None provided") +
     "</p>" +
-    "<p>Payment is confirmed separately after checkout. Please keep this email for your records.</p>" +
+    "<p>Please keep this email for your records.</p>" +
     "<p>SunnySide Summer Camp</p>"
   );
 }
@@ -1221,10 +1385,12 @@ function getCampCapacityStatus_(capacityMap, slug) {
   };
 }
 
-function ensureHeaders_(sheet) {
+function ensureHeaders_(sheet, expectedHeaders) {
+  const requiredHeaders = expectedHeaders || REGISTRATION_HEADERS;
+
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(REGISTRATION_HEADERS);
-    return REGISTRATION_HEADERS.slice();
+    sheet.appendRow(requiredHeaders);
+    return requiredHeaders.slice();
   }
 
   const currentHeaders = sheet
@@ -1235,7 +1401,7 @@ function ensureHeaders_(sheet) {
     });
   const headers = currentHeaders.slice();
 
-  REGISTRATION_HEADERS.forEach(function (header) {
+  requiredHeaders.forEach(function (header) {
     if (headers.indexOf(header) === -1) {
       headers.push(header);
     }

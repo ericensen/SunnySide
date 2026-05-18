@@ -1,5 +1,5 @@
 (function () {
-  const VERSION = "2026-05-17-1";
+  const VERSION = "2026-05-17-3";
   const currentScript = document.currentScript;
   const requestedGroups = (currentScript && currentScript.getAttribute("data-assets") || "")
     .split(",")
@@ -16,7 +16,10 @@
     ],
     main: [{ type: "script", path: "scripts/main.js" }],
     camp: [{ type: "script", path: "scripts/camp.js" }],
-    checkout: [{ type: "script", path: "scripts/checkout.js" }],
+    checkout: [
+      { type: "script", path: "scripts/checkout-logic.js" },
+      { type: "script", path: "scripts/checkout.js" }
+    ],
     confirmation: [{ type: "script", path: "scripts/confirmation.js" }]
   };
 
