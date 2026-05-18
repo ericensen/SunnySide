@@ -169,22 +169,29 @@
 
     const body = JSON.stringify(payload);
 
-    if (navigator.sendBeacon) {
-      const blob = new Blob([body], { type: "text/plain;charset=UTF-8" });
-      navigator.sendBeacon(config.registrationWebhook, blob);
+    if (window.fetch) {
+      fetch(config.registrationWebhook, {
+        method: "POST",
+        mode: "no-cors",
+        keepalive: true,
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: body
+      }).catch(function () {
+        return undefined;
+      });
       return;
     }
 
-    fetch(config.registrationWebhook, {
-      method: "POST",
-      mode: "no-cors",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8"
-      },
-      body: body
-    }).catch(function () {
-      return undefined;
-    });
+    if (navigator.sendBeacon) {
+      const blob = new Blob([body], { type: "text/plain;charset=UTF-8" });
+      navigator.sendBeacon(config.registrationWebhook, blob);
+    }
+  }
+
+  function setSubmitButtonLabel(label) {
+    submitButton.textContent = label;
   }
 
   function showStatus(messageHtml, isSuccess) {
@@ -194,9 +201,11 @@
     statusBox.innerHTML = messageHtml;
   }
 
-  function setSubmittingState(isSubmitting) {
+  function setSubmittingState(isSubmitting, label) {
     submitButton.disabled = Boolean(isSubmitting);
-    submitButton.textContent = isSubmitting ? "Checking Availability..." : "Save Registration and Continue";
+    submitButton.textContent = isSubmitting
+      ? label || "Checking Availability..."
+      : "Save Registration and Continue";
   }
 
   function buildCheckoutSessionRequestUrl(payload) {
@@ -224,8 +233,8 @@
         return result;
       }
 
-      if (currentAttempt < 6 && result && /not found/i.test(String(result.error || ""))) {
-        return delay(900).then(function () {
+      if (currentAttempt < 3 && result && /not found/i.test(String(result.error || ""))) {
+        return delay(400).then(function () {
           return requestCheckoutSession(payload, currentAttempt + 1);
         });
       }
@@ -301,6 +310,7 @@
     );
 
     const proceed = function () {
+      setSubmitButtonLabel("Preparing Payment...");
       const selectedCamps = getSelectedCamps();
       const children = getChildren().filter(function (kid) {
         return kid.name && kid.age;

@@ -14,6 +14,8 @@ const CAMP_CONTACT_PHONE = "(801) 230-1068";
 const CAMP_ADDRESS = "551 W Cephus Road, Draper UT 80420";
 const STRIPE_SECRET_KEY_PROPERTY = "STRIPE_SECRET_KEY";
 const INTEGRATION_TOKEN_PROPERTY = "SUNNYSIDE_INTEGRATION_TOKEN";
+const PENDING_CHECKOUT_LOOKUP_ATTEMPTS = 8;
+const PENDING_CHECKOUT_LOOKUP_DELAY_MS = 350;
 const REGISTRATION_HEADERS = [
   "Submitted At",
   "Registration ID",
@@ -395,7 +397,7 @@ function retrieveCheckoutSession_(sessionId) {
 }
 
 function createCheckoutSessionForRegistration_(registrationId) {
-  const pending = findPendingCheckout_(registrationId);
+  const pending = findPendingCheckoutWithRetry_(registrationId);
 
   if (!pending) {
     return {
@@ -680,6 +682,25 @@ function findPendingCheckout_(registrationId, existingContext) {
         row: row,
         payload: parseJson_(row[context.index["Payload JSON"]] || "{}")
       };
+    }
+  }
+
+  return null;
+}
+
+function findPendingCheckoutWithRetry_(registrationId) {
+  for (let attempt = 0; attempt < PENDING_CHECKOUT_LOOKUP_ATTEMPTS; attempt += 1) {
+    const pending = findPendingCheckout_(registrationId);
+
+    if (pending) {
+      return pending;
+    }
+
+    if (
+      typeof Utilities !== "undefined" &&
+      attempt < PENDING_CHECKOUT_LOOKUP_ATTEMPTS - 1
+    ) {
+      Utilities.sleep(PENDING_CHECKOUT_LOOKUP_DELAY_MS);
     }
   }
 

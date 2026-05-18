@@ -1,5 +1,5 @@
 (function () {
-  const VERSION = "2026-05-17-3";
+  const VERSION = "2026-05-18-1";
   const currentScript = document.currentScript;
   const requestedGroups = (currentScript && currentScript.getAttribute("data-assets") || "")
     .split(",")
