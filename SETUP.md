@@ -32,32 +32,19 @@ If you send the 8th camp name and date, add one more object in `scripts/camp-dat
 
 ## Stripe payment setup
 
-Open `scripts/site-config.js` and set:
+The site now creates a Stripe Checkout Session through Google Apps Script for each registration.
 
-```js
-stripePaymentLink: "https://buy.stripe.com/your-link"
-```
+- The registration form calculates the exact seat count.
+- Apps Script looks up the saved registration by confirmation ID.
+- Apps Script creates a Stripe Checkout Session with the exact quantity of `$30` camp seats.
+- Parents are sent to that Stripe-hosted checkout page automatically.
 
-The project is currently wired to this Stripe **live-mode** Payment Link:
+This replaced the earlier static Payment Link approach so parents no longer need to adjust quantity inside Stripe.
 
-```text
-https://buy.stripe.com/4gM9ASaaEcEUfiU3HzcQU01
-```
+### Important note about Stripe pricing
 
-Recommended simple setup:
-
-1. In Stripe, create one product called `SunnySide Camp Seat`.
-2. Price it at `$30`.
-3. Create a Payment Link for the camp seat price.
-4. Paste that link into `scripts/site-config.js`.
-
-Parents can then use one payment link for one kid, multiple kids, or multiple camps. The checkout page tells them how many camp seats to pay for.
-
-### Important note about the current Stripe link
-
-- The current link is in Stripe **live mode** and can accept real payments.
-- Keep the registration form as the source of truth for child names and selected camps.
-- If adjustable quantity is enabled in Stripe, parents should match the Stripe quantity to the seat count shown on the registration page.
+- Keep the registration form as the source of truth for child names, selected camps, and seat count.
+- Apps Script currently creates one line item named `SunnySide Camp Seat` at `$30` per seat.
 - Stripe stores `$30.00` as `unit_amount: 3000` because USD uses cents.
 
 ## Registration tracking setup
@@ -124,9 +111,9 @@ Important note:
 - Because this is still a lightweight static-site setup, availability checks are strongest when the Google Apps Script webhook is online and current.
 - For a fully transactional production setup with strict race-condition protection, you would eventually want a dedicated backend or booking system.
 
-### Payment reconciliation setup
+### Payment checkout and reconciliation setup
 
-The checkout flow now sends a `client_reference_id` into Stripe using the registration ID, and the site includes a `confirmation.html` page that can send the completed Stripe checkout session back to your Apps Script endpoint.
+The checkout flow now asks Apps Script to create a Stripe Checkout Session after the registration is saved. Apps Script sends the registration ID to Stripe as `client_reference_id`, and the site includes a `confirmation.html` page that sends the completed Stripe checkout session back to Apps Script.
 
 To finish that setup:
 
@@ -134,14 +121,8 @@ To finish that setup:
 2. Set `STRIPE_SECRET_KEY` to your Stripe **live secret key** before taking real payments.
 3. Deploy or redeploy the Apps Script web app after updating `apps-script/Code.gs`.
 4. Paste the deployed web app URL into `registrationWebhook` in `scripts/site-config.js`.
-5. In Stripe, open your Payment Link and set **After payment** to redirect to your site.
-6. Use this redirect URL pattern:
 
-```text
-https://sunnysidesummercamp.com/confirmation.html?session_id={CHECKOUT_SESSION_ID}
-```
-
-When Stripe redirects to that page after payment, the site sends the checkout session ID to Apps Script. Apps Script then looks up the Stripe Checkout Session with your secret key, matches the `client_reference_id` back to the registration ID, and marks matching rows as paid.
+When Stripe redirects to `confirmation.html` after payment, the site sends the checkout session ID to Apps Script. Apps Script then looks up the Stripe Checkout Session with your secret key, matches the `client_reference_id` back to the registration ID, and marks matching rows as paid.
 
 ### Optional Stripe webhook support
 
@@ -160,8 +141,8 @@ YOUR_APPS_SCRIPT_WEB_APP_URL?token=YOUR_TOKEN_HERE
 
 ## Notes
 
-- Payment is live now that `scripts/site-config.js` uses the live Stripe Payment Link and Apps Script uses a live Stripe secret key.
-- Central registration tracking is not truly live until you add a webhook URL.
+- Payment is live when Apps Script uses a live Stripe secret key and `scripts/site-config.js` points to the live Apps Script web app URL.
+- Central registration tracking depends on the configured Apps Script webhook URL.
 - Automatic payment reconciliation depends on the Apps Script `STRIPE_SECRET_KEY` property and the Stripe redirect to `confirmation.html`.
 - The built-in local backup uses browser storage and is only a fallback, not your main production database.
 - The spreadsheet summary uses the internal 20-seat planning cap, but true capacity enforcement still depends on your live registration backend or spreadsheet process.

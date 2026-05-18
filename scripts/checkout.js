@@ -211,30 +211,91 @@
     submitButton.textContent = isSubmitting ? "Checking Availability..." : "Save Registration and Continue";
   }
 
-  function buildPaymentLink(payload) {
-    if (!config.stripePaymentLink) {
+  function buildCheckoutSessionRequestUrl(payload) {
+    if (!config.registrationWebhook) {
       return "";
     }
 
     try {
-      const url = new URL(config.stripePaymentLink);
+      const url = new URL(config.registrationWebhook);
 
-      if (payload.email) {
-        url.searchParams.set("prefilled_email", payload.email);
-      }
-
-      if (payload.registrationId) {
-        url.searchParams.set("client_reference_id", payload.registrationId);
-        url.searchParams.set("utm_source", "sunnyside_site");
-        url.searchParams.set("utm_medium", "registration");
-        url.searchParams.set("utm_campaign", "summer_camp_checkout");
-        url.searchParams.set("utm_content", payload.registrationId);
-      }
+      url.searchParams.set("action", "create_checkout_session");
+      url.searchParams.set("registration_id", payload.registrationId);
 
       return url.toString();
     } catch (error) {
-      return config.stripePaymentLink;
+      return "";
     }
+  }
+
+  function requestCheckoutSession(payload, attempt) {
+    const requestUrl = buildCheckoutSessionRequestUrl(payload);
+    const currentAttempt = attempt || 1;
+
+    if (!requestUrl) {
+      return Promise.reject(new Error("Registration payment service is not configured."));
+    }
+
+    return requestJsonp(requestUrl).then(function (result) {
+      if (result && result.ok && result.checkoutUrl) {
+        return result;
+      }
+
+      if (currentAttempt < 6 && result && /not found/i.test(String(result.error || ""))) {
+        return delay(900).then(function () {
+          return requestCheckoutSession(payload, currentAttempt + 1);
+        });
+      }
+
+      throw new Error(result && result.error ? result.error : "Could not create a checkout session.");
+    });
+  }
+
+  function requestJsonp(requestUrl) {
+    return new Promise(function (resolve, reject) {
+      const callbackName = "__sunnySideCheckout" + Date.now() + Math.floor(Math.random() * 1000);
+      const script = document.createElement("script");
+      const url = new URL(requestUrl);
+      const timeoutId = window.setTimeout(function () {
+        cleanup();
+        reject(new Error("Checkout session request timed out."));
+      }, 15000);
+
+      window[callbackName] = function (payload) {
+        cleanup();
+        resolve(payload);
+      };
+
+      script.onerror = function () {
+        cleanup();
+        reject(new Error("Checkout session request failed."));
+      };
+
+      url.searchParams.set("callback", callbackName);
+      url.searchParams.set("_", String(Date.now()));
+      script.src = url.toString();
+      document.body.appendChild(script);
+
+      function cleanup() {
+        window.clearTimeout(timeoutId);
+
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+
+        try {
+          delete window[callbackName];
+        } catch (error) {
+          window[callbackName] = undefined;
+        }
+      }
+    });
+  }
+
+  function delay(milliseconds) {
+    return new Promise(function (resolve) {
+      window.setTimeout(resolve, milliseconds);
+    });
   }
 
   form.addEventListener("input", updateSummary);
@@ -348,23 +409,29 @@
 
       sendToWebhook(payload);
 
-      const paymentLink = buildPaymentLink(payload);
-      const paymentMarkup = paymentLink
-        ? `<p><a class="button button-primary" href="${paymentLink}" target="_blank" rel="noreferrer">Open Payment Link</a></p>
-           <p>Pay for <strong>${seatCount}</strong> camp seat${seatCount === 1 ? "" : "s"} in Stripe.</p>
-           <p>If you need to change children or camp selections, return to this form before completing payment.</p>`
-        : `<p>Payment is not available at the moment. Please try again soon.</p>`;
-
-      setSubmittingState(false);
       showStatus(
         `<strong>Registration saved.</strong>
          <p>Saved ${children.length} child${children.length === 1 ? "" : "ren"} for ${selectedCamps.length} camp${selectedCamps.length === 1 ? "" : "s"}.</p>
          <p>Total due: <strong>${data.money(totalDue)}</strong></p>
-         ${paymentMarkup}`,
+         <p>Preparing your secure payment page for <strong>${seatCount}</strong> camp seat${seatCount === 1 ? "" : "s"} now.</p>`,
         true
       );
 
       window.location.hash = "summary-card";
+
+      requestCheckoutSession(payload)
+        .then(function (checkoutSession) {
+          window.location.href = checkoutSession.checkoutUrl;
+        })
+        .catch(function (error) {
+          setSubmittingState(false);
+          showStatus(
+            `<strong>Registration saved, but payment could not open automatically.</strong>
+             <p>${error && error.message ? error.message : "Please contact SunnySide for help completing payment."}</p>
+             <p>Please contact SunnySide and include registration ID <strong>${payload.registrationId}</strong>.</p>`,
+            false
+          );
+        });
     };
 
     if (capacity) {

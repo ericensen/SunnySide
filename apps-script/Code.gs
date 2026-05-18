@@ -5,6 +5,8 @@ const PAYMENT_FOLLOW_UP_SHEET_NAME = "Payment Follow Up";
 const DEFAULT_CAMP_CAPACITY = 20;
 const MIN_CAMPER_AGE = 5;
 const MAX_CAMPER_AGE = 12;
+const CAMP_SEAT_PRICE_CENTS = 3000;
+const LIVE_SITE_URL = "https://sunnysidesummercamp.com";
 const ADMIN_NOTIFICATION_EMAIL = "sunnysidesummercamper@gmail.com";
 const CAMP_CONTACT_EMAIL = "sunnysidesummercamper@gmail.com";
 const CAMP_CONTACT_PHONE = "(801) 230-1068";
@@ -51,6 +53,10 @@ function doGet(e) {
 
   if (action === "confirm_payment") {
     return handlePaymentConfirmationRequest_(e);
+  }
+
+  if (action === "create_checkout_session") {
+    return handleCreateCheckoutSessionRequest_(e);
   }
 
   if (action === "capacity") {
@@ -199,6 +205,27 @@ function handlePaymentConfirmationRequest_(e) {
   };
 
   return outputJsonOrJsonp_(confirmPayment_(payload, "confirmation_page"), callback);
+}
+
+function handleCreateCheckoutSessionRequest_(e) {
+  const callback = getParameter_(e, "callback");
+  const registrationId = getParameter_(e, "registrationId") || getParameter_(e, "registration_id");
+
+  if (!registrationId) {
+    return outputJsonOrJsonp_({
+      ok: false,
+      error: "Missing registration ID."
+    }, callback);
+  }
+
+  try {
+    return outputJsonOrJsonp_(createCheckoutSessionForRegistration_(registrationId), callback);
+  } catch (error) {
+    return outputJsonOrJsonp_({
+      ok: false,
+      error: String(error && error.message ? error.message : error)
+    }, callback);
+  }
 }
 
 function confirmPayment_(payload, source) {
@@ -404,6 +431,109 @@ function retrieveCheckoutSession_(sessionId) {
 
   if (statusCode < 200 || statusCode >= 300) {
     throw new Error("Stripe session lookup failed: " + (body.error && body.error.message || statusCode));
+  }
+
+  return body;
+}
+
+function createCheckoutSessionForRegistration_(registrationId) {
+  const context = getSheetContext_();
+  const matches = findRegistrationRows_(context, registrationId);
+
+  if (!matches.length) {
+    return {
+      ok: false,
+      error: "Registration ID not found."
+    };
+  }
+
+  const firstRow = matches[0].row;
+  const parentEmail = firstRow[context.index["Email"]] || "";
+  const parentName = firstRow[context.index["Parent Name"]] || "";
+  const seatCount = parseNumber_(firstRow[context.index["Seat Count"]]) || matches.length;
+  const totalDue = parseNumber_(firstRow[context.index["Total Due"]]) || seatCount * (CAMP_SEAT_PRICE_CENTS / 100);
+  const expectedTotal = roundCurrency_(seatCount * (CAMP_SEAT_PRICE_CENTS / 100));
+
+  if (seatCount < 1) {
+    return {
+      ok: false,
+      error: "Registration does not include any seats."
+    };
+  }
+
+  if (roundCurrency_(totalDue) !== expectedTotal) {
+    return {
+      ok: false,
+      error: "Registration total does not match the expected seat count."
+    };
+  }
+
+  const session = createStripeCheckoutSession_({
+    registrationId: registrationId,
+    parentEmail: parentEmail,
+    parentName: parentName,
+    seatCount: seatCount
+  });
+
+  return {
+    ok: true,
+    registrationId: registrationId,
+    checkoutSessionId: session.id,
+    checkoutUrl: session.url,
+    seatCount: seatCount,
+    totalDue: expectedTotal
+  };
+}
+
+function createStripeCheckoutSession_(options) {
+  const secretKey = getScriptProperty_(STRIPE_SECRET_KEY_PROPERTY);
+
+  if (!secretKey) {
+    throw new Error("Missing STRIPE_SECRET_KEY script property.");
+  }
+
+  const successUrl =
+    LIVE_SITE_URL +
+    "/confirmation.html?session_id={CHECKOUT_SESSION_ID}&registration_id=" +
+    encodeURIComponent(options.registrationId);
+  const cancelUrl =
+    LIVE_SITE_URL +
+    "/checkout.html?registration_id=" +
+    encodeURIComponent(options.registrationId);
+  const payload = {
+    mode: "payment",
+    client_reference_id: options.registrationId,
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    "line_items[0][price_data][currency]": "usd",
+    "line_items[0][price_data][unit_amount]": String(CAMP_SEAT_PRICE_CENTS),
+    "line_items[0][price_data][product_data][name]": "SunnySide Camp Seat",
+    "line_items[0][quantity]": String(options.seatCount),
+    "metadata[registration_id]": options.registrationId,
+    "metadata[seat_count]": String(options.seatCount)
+  };
+
+  if (options.parentEmail) {
+    payload.customer_email = options.parentEmail;
+  }
+
+  if (options.parentName) {
+    payload["metadata[parent_name]"] = options.parentName;
+  }
+
+  const response = UrlFetchApp.fetch("https://api.stripe.com/v1/checkout/sessions", {
+    method: "post",
+    muteHttpExceptions: true,
+    headers: {
+      Authorization: "Bearer " + secretKey
+    },
+    payload: payload
+  });
+  const statusCode = response.getResponseCode();
+  const body = parseJson_(response.getContentText());
+
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new Error("Stripe checkout session creation failed: " + (body.error && body.error.message || statusCode));
   }
 
   return body;
