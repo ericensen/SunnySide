@@ -162,32 +162,16 @@
     return "SSC-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10);
   }
 
-  function submitCheckoutRedirect(payload) {
+  function requestCheckoutSession(payload) {
     if (!config.registrationWebhook) {
-      return false;
+      return Promise.reject(new Error("Registration payment service is not configured."));
     }
 
-    const redirectForm = document.createElement("form");
+    const requestUrl = new URL(config.registrationWebhook);
 
-    redirectForm.method = "POST";
-    redirectForm.action = config.registrationWebhook;
-    redirectForm.acceptCharset = "UTF-8";
-    redirectForm.style.display = "none";
-    addHiddenField(redirectForm, "action", "create_checkout_from_payload");
-    addHiddenField(redirectForm, "payload", JSON.stringify(payload));
-    document.body.appendChild(redirectForm);
-    redirectForm.submit();
-
-    return true;
-  }
-
-  function addHiddenField(targetForm, name, value) {
-    const input = document.createElement("input");
-
-    input.type = "hidden";
-    input.name = name;
-    input.value = value;
-    targetForm.appendChild(input);
+    requestUrl.searchParams.set("action", "create_checkout_from_payload");
+    requestUrl.searchParams.set("payload", JSON.stringify(payload));
+    return requestJsonp(requestUrl.toString());
   }
 
   function showStatus(messageHtml, isSuccess) {
@@ -202,6 +186,47 @@
     submitButton.textContent = isSubmitting
       ? label || "Checking Availability..."
       : "Save Registration and Continue";
+  }
+
+  function requestJsonp(requestUrl) {
+    return new Promise(function (resolve, reject) {
+      const callbackName = "__sunnySideCheckout" + Date.now() + Math.floor(Math.random() * 1000);
+      const script = document.createElement("script");
+      const url = new URL(requestUrl);
+      const timeoutId = window.setTimeout(function () {
+        cleanup();
+        reject(new Error("Checkout session request timed out."));
+      }, 20000);
+
+      window[callbackName] = function (payload) {
+        cleanup();
+        resolve(payload);
+      };
+
+      script.onerror = function () {
+        cleanup();
+        reject(new Error("Checkout session request failed."));
+      };
+
+      url.searchParams.set("callback", callbackName);
+      url.searchParams.set("_", String(Date.now()));
+      script.src = url.toString();
+      document.body.appendChild(script);
+
+      function cleanup() {
+        window.clearTimeout(timeoutId);
+
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+
+        try {
+          delete window[callbackName];
+        } catch (error) {
+          window[callbackName] = undefined;
+        }
+      }
+    });
   }
 
   form.addEventListener("input", updateSummary);
@@ -323,15 +348,28 @@
 
       window.location.hash = "summary-card";
 
-      if (submitCheckoutRedirect(payload)) {
-        return;
-      }
+      requestCheckoutSession(payload)
+        .then(function (checkoutSession) {
+          if (checkoutSession && checkoutSession.ok && checkoutSession.checkoutUrl) {
+            window.location.href = checkoutSession.checkoutUrl;
+            return;
+          }
 
-      setSubmittingState(false);
-      showStatus(
-        "<strong>Payment could not open automatically.</strong><p>Please contact SunnySide for help completing payment.</p>",
-        false
-      );
+          throw new Error(
+            checkoutSession && checkoutSession.error
+              ? checkoutSession.error
+              : "Could not create a checkout session."
+          );
+        })
+        .catch(function (error) {
+          setSubmittingState(false);
+          showStatus(
+            `<strong>Registration details were saved, but payment could not open automatically.</strong>
+             <p>${error && error.message ? error.message : "Please contact SunnySide for help completing payment."}</p>
+             <p>Please contact SunnySide and include registration ID <strong>${payload.registrationId}</strong>.</p>`,
+            false
+          );
+        });
     };
 
     proceed();

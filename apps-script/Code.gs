@@ -76,6 +76,10 @@ function doGet(e) {
     return handleStatusRequest_(e);
   }
 
+  if (action === "create_checkout_from_payload") {
+    return handleCheckoutJsonpRequest_(e);
+  }
+
   return outputJson_({
     ok: true,
     message: "SunnySide registration endpoint is running."
@@ -85,10 +89,6 @@ function doGet(e) {
 function doPost(e) {
   try {
     const action = getParameter_(e, "action");
-
-    if (action === "create_checkout_from_payload") {
-      return handleCheckoutRedirectSubmission_(e);
-    }
 
     const payload = parseJson_(e && e.postData ? e.postData.contents : "");
 
@@ -162,25 +162,26 @@ function validateAndSavePendingCheckout_(payload) {
   };
 }
 
-function handleCheckoutRedirectSubmission_(e) {
+function handleCheckoutJsonpRequest_(e) {
+  const callback = getParameter_(e, "callback");
+
   try {
     const payloadText = getParameter_(e, "payload");
     const payload = parseJson_(payloadText);
     const saveResult = validateAndSavePendingCheckout_(payload);
 
     if (!saveResult.ok) {
-      return outputCheckoutErrorHtml_(saveResult.error || "Registration could not be saved.");
+      return outputJsonOrJsonp_(saveResult, callback);
     }
 
     const checkoutSession = createCheckoutSessionForRegistration_(payload.registrationId || "");
 
-    if (!checkoutSession.ok || !checkoutSession.checkoutUrl) {
-      return outputCheckoutErrorHtml_(checkoutSession.error || "Could not create a checkout session.");
-    }
-
-    return outputRedirectHtml_(checkoutSession.checkoutUrl);
+    return outputJsonOrJsonp_(checkoutSession, callback);
   } catch (error) {
-    return outputCheckoutErrorHtml_(String(error && error.message ? error.message : error));
+    return outputJsonOrJsonp_({
+      ok: false,
+      error: String(error && error.message ? error.message : error)
+    }, callback);
   }
 }
 
@@ -1620,72 +1621,6 @@ function outputJsonOrJsonp_(payload, callbackName) {
   }
 
   return outputJson_(payload);
-}
-
-function outputRedirectHtml_(url) {
-  const safeUrl = escapeHtml_(url);
-  const scriptUrl = JSON.stringify(url);
-
-  return HtmlService.createHtmlOutput(
-    "<!doctype html>" +
-      "<html>" +
-      "<head>" +
-      '<meta charset="utf-8">' +
-      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
-      '<base target="_top">' +
-      "<title>Opening secure payment</title>" +
-      "<style>" +
-      "body{font-family:Arial,sans-serif;line-height:1.5;max-width:640px;margin:48px auto;padding:0 20px;color:#1f2937;background:#fff7d6;}" +
-      ".card{background:#fff;border:2px solid #fde68a;border-radius:24px;padding:28px;box-shadow:0 18px 40px rgba(120,77,0,.12);}" +
-      "h1{margin:0 0 12px;font-size:28px;color:#92400e;}" +
-      "p{margin:0 0 18px;}" +
-      ".button{display:inline-block;background:#f59e0b;color:#111827;text-decoration:none;font-weight:700;padding:14px 20px;border-radius:999px;}" +
-      ".note{font-size:14px;color:#6b7280;margin-top:18px;}" +
-      "</style>" +
-      "</head>" +
-      "<body>" +
-      '<main class="card">' +
-      "<h1>Ready for secure payment</h1>" +
-      "<p>Your SunnySide registration details were saved. Continue to Stripe to finish payment and confirm your camp spots.</p>" +
-      '<p><a class="button" href="' +
-      safeUrl +
-      '">Continue to Secure Payment</a></p>' +
-      '<p class="note">If this page does not move automatically, use the button above. Your card has not been charged yet.</p>' +
-      "</main>" +
-      "<script>" +
-      "setTimeout(function(){try{window.top.location.href=" +
-      scriptUrl +
-      ";}catch(error){}},300);" +
-      "</script>" +
-      "</body>" +
-      "</html>"
-  );
-}
-
-function outputCheckoutErrorHtml_(message) {
-  const checkoutUrl = LIVE_SITE_URL + "/checkout.html";
-
-  return HtmlService.createHtmlOutput(
-    "<!doctype html>" +
-      "<html>" +
-      "<head>" +
-      '<meta charset="utf-8">' +
-      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
-      '<base target="_top">' +
-      "<title>SunnySide checkout needs attention</title>" +
-      "</head>" +
-      '<body style="font-family: Arial, sans-serif; line-height: 1.5; max-width: 640px; margin: 48px auto; padding: 0 20px;">' +
-      "<h1>Checkout needs attention</h1>" +
-      "<p>" +
-      escapeHtml_(message || "Something went wrong while preparing payment.") +
-      "</p>" +
-      "<p>Your card has not been charged. Please return to the registration page and try again.</p>" +
-      '<p><a href="' +
-      escapeHtml_(checkoutUrl) +
-      '">Return to registration</a></p>' +
-      "</body>" +
-      "</html>"
-  );
 }
 
 function isValidJsonpCallback_(callbackName) {
