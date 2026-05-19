@@ -1624,6 +1624,7 @@ function outputJsonOrJsonp_(payload, callbackName) {
 
 function outputRedirectHtml_(url) {
   const safeUrl = escapeHtml_(url);
+  const scriptUrl = JSON.stringify(url);
 
   return HtmlService.createHtmlOutput(
     "<!doctype html>" +
@@ -1631,19 +1632,31 @@ function outputRedirectHtml_(url) {
       "<head>" +
       '<meta charset="utf-8">' +
       '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      '<base target="_top">' +
       "<title>Opening secure payment</title>" +
-      '<meta http-equiv="refresh" content="0; url=' +
-      safeUrl +
-      '">' +
+      "<style>" +
+      "body{font-family:Arial,sans-serif;line-height:1.5;max-width:640px;margin:48px auto;padding:0 20px;color:#1f2937;background:#fff7d6;}" +
+      ".card{background:#fff;border:2px solid #fde68a;border-radius:24px;padding:28px;box-shadow:0 18px 40px rgba(120,77,0,.12);}" +
+      "h1{margin:0 0 12px;font-size:28px;color:#92400e;}" +
+      "p{margin:0 0 18px;}" +
+      ".button{display:inline-block;background:#f59e0b;color:#111827;text-decoration:none;font-weight:700;padding:14px 20px;border-radius:999px;}" +
+      ".note{font-size:14px;color:#6b7280;margin-top:18px;}" +
+      "</style>" +
       "</head>" +
       "<body>" +
-      "<p>Opening SunnySide's secure payment page...</p>" +
-      '<p><a href="' +
+      '<main class="card">' +
+      "<h1>Ready for secure payment</h1>" +
+      "<p>Your SunnySide registration details were saved. Continue to Stripe to finish payment and confirm your camp spots.</p>" +
+      '<p><a class="button" href="' +
       safeUrl +
-      '">Continue to payment</a></p>' +
-      "<script>window.location.replace(" +
-      JSON.stringify(url) +
-      ");</script>" +
+      '">Continue to Secure Payment</a></p>' +
+      '<p class="note">If this page does not move automatically, use the button above. Your card has not been charged yet.</p>' +
+      "</main>" +
+      "<script>" +
+      "setTimeout(function(){try{window.top.location.href=" +
+      scriptUrl +
+      ";}catch(error){}},300);" +
+      "</script>" +
       "</body>" +
       "</html>"
   );
@@ -1658,6 +1671,7 @@ function outputCheckoutErrorHtml_(message) {
       "<head>" +
       '<meta charset="utf-8">' +
       '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      '<base target="_top">' +
       "<title>SunnySide checkout needs attention</title>" +
       "</head>" +
       '<body style="font-family: Arial, sans-serif; line-height: 1.5; max-width: 640px; margin: 48px auto; padding: 0 20px;">' +
