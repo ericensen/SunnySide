@@ -85,20 +85,3 @@ test("allows capacity when requested seats exactly match remaining spots", () =>
 
   assert.deepEqual(soldOut, []);
 });
-
-test("builds checkout-session request URL with encoded registration id", () => {
-  const url = checkoutLogic.buildCheckoutSessionRequestUrl(
-    "https://script.google.com/macros/s/example/exec",
-    "SSC-abc 123"
-  );
-  const parsed = new URL(url);
-
-  assert.equal(parsed.searchParams.get("action"), "create_checkout_session");
-  assert.equal(parsed.searchParams.get("registration_id"), "SSC-abc 123");
-});
-
-test("returns empty checkout URL for missing or invalid config", () => {
-  assert.equal(checkoutLogic.buildCheckoutSessionRequestUrl("", "SSC-1"), "");
-  assert.equal(checkoutLogic.buildCheckoutSessionRequestUrl("not a url", "SSC-1"), "");
-  assert.equal(checkoutLogic.buildCheckoutSessionRequestUrl("https://example.com", ""), "");
-});

@@ -19,7 +19,6 @@ globalThis.__sunny = {
   buildCampCapacityMap_,
   buildRegistrationRowsFromPayload_,
   createStripeCheckoutSession_,
-  findPendingCheckoutWithRetry_,
   isEligibleCamperAge_,
   moneyText_,
   parseNumber_,
@@ -158,87 +157,6 @@ test("Stripe Checkout Session uses exact seat quantity and card-only payment", (
   assert.equal(capturedRequest.options.payload.client_reference_id, "SSC-exact");
   assert.match(capturedRequest.options.payload.success_url, /confirmation\.html\?session_id=\{CHECKOUT_SESSION_ID\}/);
   assert.match(capturedRequest.options.payload.success_url, /registration_id=SSC-exact/);
-});
-
-test("pending checkout lookup retries briefly before giving up", () => {
-  let lookupAttempts = 0;
-  let sleepCalls = 0;
-  const context = loadAppsScript({
-    Utilities: {
-      sleep(milliseconds) {
-        sleepCalls += 1;
-        assert.equal(milliseconds, 350);
-      }
-    },
-    SpreadsheetApp: {
-      openById() {
-        return {
-          getSheetByName() {
-            return {
-              getLastRow() {
-                lookupAttempts += 1;
-                return lookupAttempts < 3 ? 1 : 2;
-              },
-              getLastColumn() {
-                return 10;
-              },
-              getRange(row, column, rowCount) {
-                if (row === 1) {
-                  return {
-                    getValues() {
-                      return [[
-                        "Created At",
-                        "Registration ID",
-                        "Parent Name",
-                        "Email",
-                        "Seat Count",
-                        "Total Due",
-                        "Status",
-                        "Stripe Checkout Session ID",
-                        "Payload JSON",
-                        "Last Updated At"
-                      ]];
-                    }
-                  };
-                }
-
-                assert.equal(row, 2);
-                assert.equal(column, 1);
-                assert.equal(rowCount, 1);
-
-                return {
-                  getValues() {
-                    return [[
-                      "2026-05-17T10:00:00.000Z",
-                      "SSC-retry",
-                      "Jamie Parent",
-                      "parent@example.com",
-                      1,
-                      30,
-                      "registration_submitted",
-                      "",
-                      JSON.stringify(samplePayload({ registrationId: "SSC-retry", seatCount: 1, totalDue: 30 })),
-                      "2026-05-17T10:00:00.000Z"
-                    ]];
-                  }
-                };
-              }
-            };
-          },
-          insertSheet() {
-            throw new Error("Unexpected sheet creation in retry test.");
-          }
-        };
-      }
-    }
-  });
-
-  const pending = context.__sunny.findPendingCheckoutWithRetry_("SSC-retry");
-
-  assert.equal(pending.rowNumber, 2);
-  assert.equal(pending.payload.registrationId, "SSC-retry");
-  assert.equal(lookupAttempts, 4);
-  assert.equal(sleepCalls, 1);
 });
 
 test("camp capacity counts one seat per child per camp row", () => {

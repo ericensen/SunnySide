@@ -12,7 +12,6 @@
   const checkoutSessionId = params.get("session_id") || "";
   const registrationId =
     params.get("registration_id") ||
-    params.get("utm_content") ||
     (pendingRegistration && pendingRegistration.registrationId) ||
     "";
 

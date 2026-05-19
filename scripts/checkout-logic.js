@@ -29,23 +29,6 @@
     });
   }
 
-  function buildCheckoutSessionRequestUrl(registrationWebhook, registrationId) {
-    if (!registrationWebhook || !registrationId) {
-      return "";
-    }
-
-    try {
-      const url = new URL(registrationWebhook);
-
-      url.searchParams.set("action", "create_checkout_session");
-      url.searchParams.set("registration_id", registrationId);
-
-      return url.toString();
-    } catch (error) {
-      return "";
-    }
-  }
-
   function asArray(value) {
     return Array.isArray(value) ? value : [];
   }
@@ -55,8 +38,7 @@
     calculateTotalDue: calculateTotalDue,
     isEligibleAge: isEligibleAge,
     getIneligibleChildren: getIneligibleChildren,
-    getSoldOutSelections: getSoldOutSelections,
-    buildCheckoutSessionRequestUrl: buildCheckoutSessionRequestUrl
+    getSoldOutSelections: getSoldOutSelections
   };
 
   if (typeof module !== "undefined" && module.exports) {

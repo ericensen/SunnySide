@@ -38,9 +38,9 @@ The site now creates a Stripe Checkout Session through Google Apps Script for ea
 - Apps Script looks up the saved registration by confirmation ID.
 - Apps Script creates a Stripe Checkout Session with the exact quantity of `$30` camp seats.
 - Parents are sent to that Stripe-hosted checkout page automatically.
-- Checkout is currently limited to card payments so Stripe Link is not shown as the default payment method.
+- Checkout is currently limited to card payments. If Stripe's accelerated Link option still appears in Checkout, disable Link in the Stripe Dashboard payment method settings.
 
-This replaced the earlier static Payment Link approach so parents no longer need to adjust quantity inside Stripe.
+This replaced the earlier static checkout approach so parents no longer need to adjust quantity inside Stripe.
 
 ### Important note about Stripe pricing
 

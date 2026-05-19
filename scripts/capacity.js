@@ -12,7 +12,6 @@
       date: camp ? camp.shortDate : "",
       registeredSeats: 0,
       paidSeats: 0,
-      pendingSeats: 0,
       remainingSpots: data && typeof data.maxOpenings === "number" ? data.maxOpenings : 20,
       soldOut: false,
       status: "Open"

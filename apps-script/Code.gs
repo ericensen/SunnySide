@@ -14,8 +14,6 @@ const CAMP_CONTACT_PHONE = "(801) 230-1068";
 const CAMP_ADDRESS = "551 W Cephus Road, Draper UT 80420";
 const STRIPE_SECRET_KEY_PROPERTY = "STRIPE_SECRET_KEY";
 const INTEGRATION_TOKEN_PROPERTY = "SUNNYSIDE_INTEGRATION_TOKEN";
-const PENDING_CHECKOUT_LOOKUP_ATTEMPTS = 8;
-const PENDING_CHECKOUT_LOOKUP_DELAY_MS = 350;
 const REGISTRATION_HEADERS = [
   "Submitted At",
   "Registration ID",
@@ -70,10 +68,6 @@ function doGet(e) {
     return handlePaymentConfirmationRequest_(e);
   }
 
-  if (action === "create_checkout_session") {
-    return handleCreateCheckoutSessionRequest_(e);
-  }
-
   if (action === "capacity") {
     return handleCapacityRequest_(e);
   }
@@ -90,13 +84,22 @@ function doGet(e) {
 
 function doPost(e) {
   try {
+    const action = getParameter_(e, "action");
+
+    if (action === "create_checkout_from_payload") {
+      return handleCheckoutRedirectSubmission_(e);
+    }
+
     const payload = parseJson_(e && e.postData ? e.postData.contents : "");
 
     if (isStripeEvent_(payload)) {
       return handleStripeEvent_(e, payload);
     }
 
-    return handleRegistrationSubmission_(payload);
+    return outputJson_({
+      ok: false,
+      error: "Unsupported POST action."
+    });
   } catch (error) {
     return outputJson_({
       ok: false,
@@ -105,11 +108,10 @@ function doPost(e) {
   }
 }
 
-function handleRegistrationSubmission_(payload) {
+function validateAndSavePendingCheckout_(payload) {
   const context = getSheetContext_();
   const camps = Array.isArray(payload.camps) ? payload.camps : [];
   const kids = Array.isArray(payload.kids) ? payload.kids : [];
-  const timestamp = payload.submittedAt || new Date().toISOString();
   const capacityMap = buildCampCapacityMap_(getRegistrationObjects_(context));
   const requestedSeatsPerCamp = kids.length;
   const soldOutCamps = camps.filter(function (camp) {
@@ -118,10 +120,10 @@ function handleRegistrationSubmission_(payload) {
   });
 
   if (!camps.length || !kids.length) {
-    return outputJson_({
+    return {
       ok: false,
       error: "At least one camp and one child are required."
-    });
+    };
   }
 
   const ineligibleKids = kids.filter(function (kid) {
@@ -129,14 +131,14 @@ function handleRegistrationSubmission_(payload) {
   });
 
   if (ineligibleKids.length) {
-    return outputJson_({
+    return {
       ok: false,
       error: "SunnySide camp is for kids ages " + MIN_CAMPER_AGE + " to " + MAX_CAMPER_AGE + "."
-    });
+    };
   }
 
   if (soldOutCamps.length) {
-    return outputJson_({
+    return {
       ok: false,
       error:
         "One or more selected camps are sold out: " +
@@ -148,16 +150,38 @@ function handleRegistrationSubmission_(payload) {
       soldOutCamps: soldOutCamps.map(function (camp) {
         return camp.slug || "";
       })
-    });
+    };
   }
 
   savePendingCheckout_(payload, "registration_submitted", "");
 
-  return outputJson_({
+  return {
     ok: true,
     pending: true,
     registrationId: payload.registrationId || ""
-  });
+  };
+}
+
+function handleCheckoutRedirectSubmission_(e) {
+  try {
+    const payloadText = getParameter_(e, "payload");
+    const payload = parseJson_(payloadText);
+    const saveResult = validateAndSavePendingCheckout_(payload);
+
+    if (!saveResult.ok) {
+      return outputCheckoutErrorHtml_(saveResult.error || "Registration could not be saved.");
+    }
+
+    const checkoutSession = createCheckoutSessionForRegistration_(payload.registrationId || "");
+
+    if (!checkoutSession.ok || !checkoutSession.checkoutUrl) {
+      return outputCheckoutErrorHtml_(checkoutSession.error || "Could not create a checkout session.");
+    }
+
+    return outputRedirectHtml_(checkoutSession.checkoutUrl);
+  } catch (error) {
+    return outputCheckoutErrorHtml_(String(error && error.message ? error.message : error));
+  }
 }
 
 function handlePaymentConfirmationRequest_(e) {
@@ -168,27 +192,6 @@ function handlePaymentConfirmationRequest_(e) {
   };
 
   return outputJsonOrJsonp_(confirmPayment_(payload, "confirmation_page"), callback);
-}
-
-function handleCreateCheckoutSessionRequest_(e) {
-  const callback = getParameter_(e, "callback");
-  const registrationId = getParameter_(e, "registrationId") || getParameter_(e, "registration_id");
-
-  if (!registrationId) {
-    return outputJsonOrJsonp_({
-      ok: false,
-      error: "Missing registration ID."
-    }, callback);
-  }
-
-  try {
-    return outputJsonOrJsonp_(createCheckoutSessionForRegistration_(registrationId), callback);
-  } catch (error) {
-    return outputJsonOrJsonp_({
-      ok: false,
-      error: String(error && error.message ? error.message : error)
-    }, callback);
-  }
 }
 
 function confirmPayment_(payload, source) {
@@ -397,7 +400,7 @@ function retrieveCheckoutSession_(sessionId) {
 }
 
 function createCheckoutSessionForRegistration_(registrationId) {
-  const pending = findPendingCheckoutWithRetry_(registrationId);
+  const pending = findPendingCheckout_(registrationId);
 
   if (!pending) {
     return {
@@ -682,25 +685,6 @@ function findPendingCheckout_(registrationId, existingContext) {
         row: row,
         payload: parseJson_(row[context.index["Payload JSON"]] || "{}")
       };
-    }
-  }
-
-  return null;
-}
-
-function findPendingCheckoutWithRetry_(registrationId) {
-  for (let attempt = 0; attempt < PENDING_CHECKOUT_LOOKUP_ATTEMPTS; attempt += 1) {
-    const pending = findPendingCheckout_(registrationId);
-
-    if (pending) {
-      return pending;
-    }
-
-    if (
-      typeof Utilities !== "undefined" &&
-      attempt < PENDING_CHECKOUT_LOOKUP_ATTEMPTS - 1
-    ) {
-      Utilities.sleep(PENDING_CHECKOUT_LOOKUP_DELAY_MS);
     }
   }
 
@@ -1636,6 +1620,58 @@ function outputJsonOrJsonp_(payload, callbackName) {
   }
 
   return outputJson_(payload);
+}
+
+function outputRedirectHtml_(url) {
+  const safeUrl = escapeHtml_(url);
+
+  return HtmlService.createHtmlOutput(
+    "<!doctype html>" +
+      "<html>" +
+      "<head>" +
+      '<meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      "<title>Opening secure payment</title>" +
+      '<meta http-equiv="refresh" content="0; url=' +
+      safeUrl +
+      '">' +
+      "</head>" +
+      "<body>" +
+      "<p>Opening SunnySide's secure payment page...</p>" +
+      '<p><a href="' +
+      safeUrl +
+      '">Continue to payment</a></p>' +
+      "<script>window.location.replace(" +
+      JSON.stringify(url) +
+      ");</script>" +
+      "</body>" +
+      "</html>"
+  );
+}
+
+function outputCheckoutErrorHtml_(message) {
+  const checkoutUrl = LIVE_SITE_URL + "/checkout.html";
+
+  return HtmlService.createHtmlOutput(
+    "<!doctype html>" +
+      "<html>" +
+      "<head>" +
+      '<meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      "<title>SunnySide checkout needs attention</title>" +
+      "</head>" +
+      '<body style="font-family: Arial, sans-serif; line-height: 1.5; max-width: 640px; margin: 48px auto; padding: 0 20px;">' +
+      "<h1>Checkout needs attention</h1>" +
+      "<p>" +
+      escapeHtml_(message || "Something went wrong while preparing payment.") +
+      "</p>" +
+      "<p>Your card has not been charged. Please return to the registration page and try again.</p>" +
+      '<p><a href="' +
+      escapeHtml_(checkoutUrl) +
+      '">Return to registration</a></p>' +
+      "</body>" +
+      "</html>"
+  );
 }
 
 function isValidJsonpCallback_(callbackName) {
