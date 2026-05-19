@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "sunnysidesummercamp",
+  "name": "sunnyside",
   "compatibility_date": "2026-05-19",
   "assets": {
     "directory": "."
