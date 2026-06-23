@@ -25,6 +25,11 @@ test("camp data exposes current price and age rules", () => {
   assert.equal(data.maxOpenings, 20);
   assert.equal(data.minAge, 5);
   assert.equal(data.maxAge, 12);
+  assert.equal(data.campTime, "10:00 AM - 1:00 PM");
+  assert.deepEqual(
+    Array.from(data.camps, (camp) => camp.time),
+    Array(data.camps.length).fill("10:00 AM - 1:00 PM")
+  );
 });
 
 test("camp lineup is ordered by current camp date", () => {

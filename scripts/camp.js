@@ -26,7 +26,7 @@
     mount.innerHTML = `
       <section class="camp-hero${status.soldOut ? " sold-out" : ""}" style="--camp-a:${camp.colors[0]}; --camp-b:${camp.colors[1]};">
         <div class="camp-hero-copy">
-          <p class="eyebrow">${camp.shortDate}</p>
+          <p class="eyebrow">${camp.shortDate} | ${camp.time}</p>
           <div class="camp-title-wrap">
             ${soldOutRibbon}
             <h1>${camp.title}</h1>
@@ -34,6 +34,7 @@
           <p class="hero-text">${camp.description}</p>
           <div class="camp-meta">
             <span class="meta-pill">${status.soldOut ? "Sold Out" : "Only " + data.money(data.pricePerKid) + "!"}</span>
+            <span class="meta-pill">${camp.time}</span>
             <span class="meta-pill">Ages ${data.minAge}-${data.maxAge}</span>
             <span class="meta-pill">${status.soldOut ? "This camp has reached capacity." : "Limited availability. Book today!"}</span>
             <span class="meta-pill">Summer 2026</span>

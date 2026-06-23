@@ -4,6 +4,8 @@
     return version ? path + "?v=" + encodeURIComponent(version) : path;
   }
 
+  const campTime = "10:00 AM - 1:00 PM";
+
   const camps = [
     {
       slug: "arts-crafts",
@@ -126,6 +128,10 @@
     }
   ];
 
+  camps.forEach(function (camp) {
+    camp.time = campTime;
+  });
+
   function money(value) {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -147,6 +153,7 @@
     maxOpenings: 20,
     minAge: 5,
     maxAge: 12,
+    campTime: campTime,
     camps: camps,
     money: money,
     campUrl: campUrl,

@@ -134,7 +134,7 @@
             return `
               <div class="summary-item">
                 <strong>${camp.title}</strong>
-                <p>${camp.shortDate}</p>
+                <p>${camp.shortDate}${camp.time ? " | " + camp.time : ""}</p>
               </div>
             `;
           })

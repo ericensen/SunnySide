@@ -59,7 +59,7 @@
             <input type="checkbox" name="selectedCamp" value="${camp.slug}" ${checked} ${disabled}>
             <span>
               <strong>${camp.title}</strong>
-              <small>${camp.shortDate}</small>
+              <small>${camp.shortDate} | ${camp.time}</small>
               <p>${camp.blurb}</p>
               ${availabilityMarkup}
             </span>
@@ -131,7 +131,7 @@
             return `
               <div class="summary-item">
                 <strong>${camp.title}</strong>
-                <p>${camp.shortDate}</p>
+                <p>${camp.shortDate} | ${camp.time}</p>
               </div>
             `;
           })
@@ -320,7 +320,8 @@
           return {
             slug: camp.slug,
             title: camp.title,
-            shortDate: camp.shortDate
+            shortDate: camp.shortDate,
+            time: camp.time
           };
         }),
         seatCount: seatCount,
